@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Bot, User, Plus, DollarSign, Target, CreditCard, Zap } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, User, Plus, DollarSign, Target, CreditCard, Zap, Sparkles } from 'lucide-react';
 import { AzureOpenAIService } from '../../lib/azureOpenAI';
 import { DatabaseService } from '../../lib/database';
 import { formatCurrency } from '../../lib/utils';
@@ -21,7 +21,7 @@ export function UnifiedChatBot() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: 'Olá! Sou seu assistente financeiro inteligente. Posso ajudá-lo com:\n\n💬 Análises e consultas sobre suas finanças\n⚡ Comandos rápidos como "Gastei R$ 50 com alimentação"\n🎯 Criação de metas: "Criar meta de R$ 1000"\n🏦 Novas contas: "Criar conta poupança Banco do Brasil"\n\nComo posso ajudá-lo hoje?',
+      content: '🤖 Olá! Sou seu assistente financeiro inteligente com IA avançada. Posso ajudá-lo com:\n\n💬 **Análises e consultas** sobre suas finanças\n⚡ **Comandos rápidos** como "Gastei R$ 50 com alimentação"\n🎯 **Criação de metas**: "Criar meta de R$ 1000"\n🏦 **Novas contas**: "Criar conta poupança Banco do Brasil"\n📊 **Relatórios inteligentes** e insights personalizados\n\nComo posso ajudá-lo hoje?',
       sender: 'bot',
       timestamp: new Date()
     }
@@ -358,19 +358,20 @@ export function UnifiedChatBot() {
       {/* Chat Button */}
       <button
         onClick={() => setIsOpen(true)}
-        className={`fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center z-50 ${
+        className={`fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center z-50 group ${
           isOpen ? 'scale-0' : 'scale-100'
         }`}
       >
         <div className="relative">
-          <MessageCircle className="w-6 h-6" />
-          <Zap className="w-3 h-3 absolute -top-1 -right-1 text-yellow-300" />
+          <MessageCircle className="w-7 h-7 group-hover:scale-110 transition-transform" />
+          <Sparkles className="w-4 h-4 absolute -top-1 -right-1 text-yellow-300 animate-pulse" />
         </div>
+        <div className="absolute -top-2 -right-2 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
       </button>
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 w-96 h-[500px] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col z-50 overflow-hidden">
+        <div className="fixed bottom-6 right-6 w-96 h-[600px] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col z-50 overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 rounded-t-2xl flex-shrink-0">
             <div className="flex items-center space-x-3">
@@ -378,8 +379,11 @@ export function UnifiedChatBot() {
                 <Bot className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="font-semibold text-white">Assistente Financeiro IA</h3>
-                <p className="text-xs text-blue-100">Chat inteligente + Comandos rápidos</p>
+                <h3 className="font-semibold text-white">Assistente IA Financeiro</h3>
+                <p className="text-xs text-blue-100 flex items-center space-x-1">
+                  <Zap className="w-3 h-3" />
+                  <span>Chat inteligente + Comandos rápidos</span>
+                </p>
               </div>
             </div>
             <button
@@ -397,7 +401,7 @@ export function UnifiedChatBot() {
                 key={message.id}
                 className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
               >
-                <div className={`flex items-start space-x-2 max-w-[80%] ${
+                <div className={`flex items-start space-x-2 max-w-[85%] ${
                   message.sender === 'user' ? 'flex-row-reverse space-x-reverse' : ''
                 }`}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
@@ -411,23 +415,23 @@ export function UnifiedChatBot() {
                       <Bot className="w-4 h-4" />
                     )}
                   </div>
-                  <div className={`px-4 py-2 rounded-2xl ${
+                  <div className={`px-4 py-3 rounded-2xl ${
                     message.sender === 'user'
                       ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
                   }`}>
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
                     
                     {message.action && (
-                      <div className="flex items-center space-x-2 mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                      <div className="flex items-center space-x-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
                         {getActionIcon(message.action.type)}
                         <span className="text-xs font-medium">
-                          {message.action.executed ? 'Executado' : 'Ação pendente'}
+                          {message.action.executed ? '✅ Executado' : '⏳ Ação pendente'}
                         </span>
                       </div>
                     )}
                     
-                    <p className={`text-xs mt-1 ${
+                    <p className={`text-xs mt-2 ${
                       message.sender === 'user' ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
                     }`}>
                       {message.timestamp.toLocaleTimeString('pt-BR', { 
@@ -446,7 +450,7 @@ export function UnifiedChatBot() {
                   <div className="w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
                     <Bot className="w-4 h-4 text-gray-600 dark:text-gray-300" />
                   </div>
-                  <div className="bg-gray-100 dark:bg-gray-700 px-4 py-2 rounded-2xl">
+                  <div className="bg-gray-100 dark:bg-gray-700 px-4 py-3 rounded-2xl">
                     <div className="flex space-x-1">
                       <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
                       <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
@@ -482,11 +486,14 @@ export function UnifiedChatBot() {
             </div>
             
             {/* Comandos de exemplo */}
-            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              <p><strong>Comandos rápidos:</strong></p>
-              <p>• "Gastei R$ 25 com alimentação"</p>
-              <p>• "Criar meta de R$ 1000"</p>
-              <p>• "Criar conta poupança Banco do Brasil"</p>
+            <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+              <p><strong>💡 Comandos rápidos:</strong></p>
+              <div className="grid grid-cols-1 gap-1 mt-1">
+                <p>• "Gastei R$ 25 com alimentação"</p>
+                <p>• "Criar meta de R$ 1000"</p>
+                <p>• "Criar conta poupança Banco do Brasil"</p>
+                <p>• "Como estão meus gastos este mês?"</p>
+              </div>
             </div>
           </div>
         </div>

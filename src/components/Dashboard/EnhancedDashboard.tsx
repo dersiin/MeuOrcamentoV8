@@ -11,7 +11,11 @@ import {
   Zap,
   Wallet,
   TrendingUp as Growth,
-  Percent
+  Percent,
+  Plus,
+  ArrowLeftRight,
+  BarChart3,
+  Eye
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
 import { DatabaseService } from '../../lib/database';
@@ -236,11 +240,11 @@ export function EnhancedDashboard({ onNavigate }: EnhancedDashboardProps) {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 lg:space-y-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Dashboard Inteligente</h1>
+          <h1 className="text-2xl lg:text-4xl font-bold text-gray-900 dark:text-white">Dashboard Inteligente</h1>
           <p className="text-gray-600 dark:text-gray-300 mt-2">Visão completa e insights das suas finanças</p>
         </div>
         
@@ -255,17 +259,55 @@ export function EnhancedDashboard({ onNavigate }: EnhancedDashboardProps) {
         </select>
       </div>
 
+      {/* Ações Rápidas */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 lg:p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">⚡ Ações Rápidas</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:gap-4">
+          <button
+            onClick={() => onNavigate?.('lancamentos')}
+            className="flex flex-col items-center p-4 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-xl transition-all duration-200 group"
+          >
+            <Plus className="w-6 h-6 text-blue-600 mb-2 group-hover:scale-110 transition-transform" />
+            <span className="text-sm font-medium text-blue-700 dark:text-blue-300 text-center">Novo Lançamento</span>
+          </button>
+          
+          <button
+            onClick={() => onNavigate?.('transferencias')}
+            className="flex flex-col items-center p-4 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-xl transition-all duration-200 group"
+          >
+            <ArrowLeftRight className="w-6 h-6 text-green-600 mb-2 group-hover:scale-110 transition-transform" />
+            <span className="text-sm font-medium text-green-700 dark:text-green-300 text-center">Transferência</span>
+          </button>
+          
+          <button
+            onClick={() => onNavigate?.('relatorios')}
+            className="flex flex-col items-center p-4 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-xl transition-all duration-200 group"
+          >
+            <BarChart3 className="w-6 h-6 text-purple-600 mb-2 group-hover:scale-110 transition-transform" />
+            <span className="text-sm font-medium text-purple-700 dark:text-purple-300 text-center">Relatórios</span>
+          </button>
+          
+          <button
+            onClick={() => onNavigate?.('metas')}
+            className="flex flex-col items-center p-4 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 rounded-xl transition-all duration-200 group"
+          >
+            <Target className="w-6 h-6 text-orange-600 mb-2 group-hover:scale-110 transition-transform" />
+            <span className="text-sm font-medium text-orange-700 dark:text-orange-300 text-center">Metas</span>
+          </button>
+        </div>
+      </div>
+
       {/* KPIs Principais */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         {data.kpis.map((kpi, index) => {
           const IconComponent = getIconComponent(kpi.icon || 'DollarSign');
           
           return (
-            <div key={index} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 hover:shadow-lg transition-all duration-300">
+            <div key={index} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 lg:p-6 hover:shadow-lg transition-all duration-300">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">{kpi.label}</p>
-                  <p className={`text-3xl font-bold ${kpi.color} dark:${kpi.color.replace('text-', 'text-')}`}>{kpi.value}</p>
+                  <p className={`text-2xl lg:text-3xl font-bold ${kpi.color} dark:${kpi.color.replace('text-', 'text-')}`}>{kpi.value}</p>
                   {kpi.change !== undefined && (
                     <div className="flex items-center space-x-1 mt-2">
                       {kpi.trend === 'up' && <TrendingUp className="w-4 h-4 text-green-600" />}
@@ -281,11 +323,11 @@ export function EnhancedDashboard({ onNavigate }: EnhancedDashboardProps) {
                     </div>
                   )}
                 </div>
-                <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${
+                <div className={`w-12 h-12 lg:w-14 lg:h-14 rounded-xl flex items-center justify-center ${
                   kpi.trend === 'up' ? 'bg-green-50 dark:bg-green-900/20' : 
                   kpi.trend === 'down' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-blue-50 dark:bg-blue-900/20'
                 }`}>
-                  <IconComponent className={`w-7 h-7 ${
+                  <IconComponent className={`w-6 h-6 lg:w-7 lg:h-7 ${
                     kpi.trend === 'up' ? 'text-green-600' : 
                     kpi.trend === 'down' ? 'text-red-600' : 'text-blue-600'
                   }`} />
@@ -297,13 +339,13 @@ export function EnhancedDashboard({ onNavigate }: EnhancedDashboardProps) {
       </div>
 
       {/* Insights Financeiros */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800 p-6">
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800 p-4 lg:p-6">
         <div className="flex items-center space-x-2 mb-4">
           <Zap className="w-5 h-5 text-blue-600" />
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Insights Inteligentes</h2>
+          <h2 className="text-lg lg:text-xl font-semibold text-gray-900 dark:text-white">Insights Inteligentes</h2>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {resumoFinanceiro.taxaPoupanca >= 20 && (
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
               <div className="flex items-center space-x-2">
@@ -343,23 +385,23 @@ export function EnhancedDashboard({ onNavigate }: EnhancedDashboardProps) {
       </div>
 
       {/* Gráficos */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-        {/* Gráfico de Despesas por Categoria - CORRIGIDO */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
+        {/* Gráfico de Despesas por Categoria */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 lg:p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Despesas por Categoria</h3>
           
           {dadosGraficoPizza.length > 0 ? (
             <div className="w-full">
-              {/* Container do gráfico com altura fixa */}
-              <div className="h-64 w-full mb-4">
+              {/* Container do gráfico com altura responsiva */}
+              <div className="h-48 sm:h-64 w-full mb-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={dadosGraficoPizza}
                       cx="50%"
                       cy="50%"
-                      innerRadius={50}
-                      outerRadius={100}
+                      innerRadius={40}
+                      outerRadius={80}
                       paddingAngle={2}
                       dataKey="valor"
                     >
@@ -383,7 +425,7 @@ export function EnhancedDashboard({ onNavigate }: EnhancedDashboardProps) {
               
               {/* Lista de categorias com scroll controlado */}
               <div className="w-full">
-                <div className="max-h-40 overflow-y-auto space-y-2 pr-2">
+                <div className="max-h-32 sm:max-h-40 overflow-y-auto space-y-2 pr-2">
                   {dadosGraficoPizza.map((item, index) => (
                     <div key={index} className="flex items-center justify-between text-sm py-1">
                       <div className="flex items-center space-x-2 flex-1 min-w-0">
@@ -409,7 +451,7 @@ export function EnhancedDashboard({ onNavigate }: EnhancedDashboardProps) {
               </div>
             </div>
           ) : (
-            <div className="h-80 flex items-center justify-center text-gray-500 dark:text-gray-400">
+            <div className="h-64 sm:h-80 flex items-center justify-center text-gray-500 dark:text-gray-400">
               <div className="text-center">
                 <PieChartIcon className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
                 <p>Nenhuma despesa encontrada neste período</p>
@@ -419,8 +461,17 @@ export function EnhancedDashboard({ onNavigate }: EnhancedDashboardProps) {
         </div>
 
         {/* Resumo das Contas */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Resumo das Contas</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 lg:p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Resumo das Contas</h3>
+            <button
+              onClick={() => onNavigate?.('contas')}
+              className="text-sm text-blue-600 hover:text-blue-700 flex items-center space-x-1"
+            >
+              <Eye className="w-4 h-4" />
+              <span>Ver todas</span>
+            </button>
+          </div>
           
           {data.contas.length > 0 ? (
             <div className="space-y-3">
@@ -433,18 +484,18 @@ export function EnhancedDashboard({ onNavigate }: EnhancedDashboardProps) {
                 
                 return (
                   <div key={conta.id} className={`flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors ${alertaLimite ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' : ''}`}>
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${alertaLimite ? 'bg-red-100 dark:bg-red-900/30' : 'bg-blue-50 dark:bg-blue-900/20'}`}>
-                        <CreditCard className={`w-5 h-5 ${alertaLimite ? 'text-red-600' : 'text-blue-600'}`} />
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      <div className={`w-8 h-8 lg:w-10 lg:h-10 rounded-lg flex items-center justify-center ${alertaLimite ? 'bg-red-100 dark:bg-red-900/30' : 'bg-blue-50 dark:bg-blue-900/20'}`}>
+                        <CreditCard className={`w-4 h-4 lg:w-5 lg:h-5 ${alertaLimite ? 'text-red-600' : 'text-blue-600'}`} />
                       </div>
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2">
-                          <p className="font-medium text-gray-900 dark:text-white">{conta.nome}</p>
+                          <p className="font-medium text-gray-900 dark:text-white truncate">{conta.nome}</p>
                           {alertaLimite && (
-                            <AlertCircle className="w-4 h-4 text-red-500" />
+                            <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
                           )}
                         </div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
                           {conta.tipo}
                           {isCartaoCredito && conta.limite_credito && (
                             <span className="ml-2">• {utilizacao.toFixed(1)}% usado</span>
@@ -452,7 +503,7 @@ export function EnhancedDashboard({ onNavigate }: EnhancedDashboardProps) {
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right flex-shrink-0">
                       <p className={`font-semibold ${
                         conta.saldo_atual >= 0 ? 'text-green-600' : 'text-red-600'
                       }`}>
@@ -484,7 +535,7 @@ export function EnhancedDashboard({ onNavigate }: EnhancedDashboardProps) {
               <CreditCard className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
               <p>Nenhuma conta cadastrada</p>
             </div>
-            )}
+          )}
         </div>
       </div>
     </div>

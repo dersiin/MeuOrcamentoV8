@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Bot, User, Plus, DollarSign, Target, CreditCard, Zap, Sparkles } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, User, Plus, DollarSign, Target, CreditCard, Zap, Sparkles, Brain } from 'lucide-react';
 import { AzureOpenAIService } from '../../lib/azureOpenAI';
 import { DatabaseService } from '../../lib/database';
 import { formatCurrency } from '../../lib/utils';
@@ -355,28 +355,28 @@ export function UnifiedChatBot() {
 
   return (
     <>
-      {/* Chat Button */}
+      {/* Chat Button - Melhorado */}
       <button
         onClick={() => setIsOpen(true)}
-        className={`fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center z-50 group ${
+        className={`fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center z-50 group ${
           isOpen ? 'scale-0' : 'scale-100'
         }`}
       >
         <div className="relative">
-          <MessageCircle className="w-7 h-7 group-hover:scale-110 transition-transform" />
-          <Sparkles className="w-4 h-4 absolute -top-1 -right-1 text-yellow-300 animate-pulse" />
+          <Brain className="w-6 h-6 sm:w-7 sm:h-7 group-hover:scale-110 transition-transform" />
+          <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 absolute -top-1 -right-1 text-yellow-300 animate-pulse" />
         </div>
-        <div className="absolute -top-2 -right-2 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
+        <div className="absolute -top-2 -right-2 w-3 h-3 sm:w-4 sm:h-4 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
       </button>
 
-      {/* Chat Window */}
+      {/* Chat Window - Responsivo */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 w-96 h-[600px] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col z-50 overflow-hidden">
+        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] max-w-sm sm:w-96 h-[calc(100vh-8rem)] max-h-[600px] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col z-50 overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 rounded-t-2xl flex-shrink-0">
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-                <Bot className="w-5 h-5 text-white" />
+                <Brain className="w-5 h-5 text-white" />
               </div>
               <div>
                 <h3 className="font-semibold text-white">Assistente IA Financeiro</h3>
@@ -412,7 +412,7 @@ export function UnifiedChatBot() {
                     {message.sender === 'user' ? (
                       <User className="w-4 h-4" />
                     ) : (
-                      <Bot className="w-4 h-4" />
+                      <Brain className="w-4 h-4" />
                     )}
                   </div>
                   <div className={`px-4 py-3 rounded-2xl ${
@@ -448,7 +448,7 @@ export function UnifiedChatBot() {
               <div className="flex justify-start">
                 <div className="flex items-start space-x-2">
                   <div className="w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                    <Bot className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                    <Brain className="w-4 h-4 text-gray-600 dark:text-gray-300" />
                   </div>
                   <div className="bg-gray-100 dark:bg-gray-700 px-4 py-3 rounded-2xl">
                     <div className="flex space-x-1">

@@ -34,6 +34,7 @@ export function Lancamentos() {
     status: 'CONFIRMADO' as 'PENDENTE' | 'CONFIRMADO' | 'CANCELADO',
     antecedencia_notificacao: 3,
     cartao_credito_usado: '',
+    forma_pagamento: 'DEBITO' as 'DEBITO' | 'CREDITO',
     isParcelado: false,
     numeroParcelas: 2,
   });
@@ -153,6 +154,7 @@ export function Lancamentos() {
       status: lancamento.status,
       antecedencia_notificacao: lancamento.antecedencia_notificacao || 3,
       cartao_credito_usado: lancamento.cartao_credito_usado || '',
+      forma_pagamento: lancamento.forma_pagamento || 'DEBITO',
       isParcelado: false,
       numeroParcelas: 2,
     });
@@ -201,6 +203,7 @@ export function Lancamentos() {
       status: 'CONFIRMADO',
       antecedencia_notificacao: 3,
       cartao_credito_usado: '',
+      forma_pagamento: 'DEBITO',
       isParcelado: false,
       numeroParcelas: 2,
     });

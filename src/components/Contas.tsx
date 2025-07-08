@@ -166,49 +166,28 @@ export function Contas() {
 
   const contasComCalculos = useMemo(() => {
     return contas.map(conta => {
-      const transacoesConta = lancamentos.filter(l => l.conta_id === conta.id);
-      
-      const receitasTotal = transacoesConta
-        .filter(l => l.tipo === 'RECEITA' && l.status === 'CONFIRMADO')
-        .reduce((sum, l) => sum + l.valor, 0);
-      
-      const despesasTotal = transacoesConta
-        .filter(l => l.tipo === 'DESPESA' && l.status === 'CONFIRMADO')
-        .reduce((sum, l) => sum + l.valor, 0);
-
-      // Calcular gastos específicos do cartão de crédito
-      const gastosCartao = transacoesConta
-        .filter(l => l.tipo === 'DESPESA' && l.status === 'CONFIRMADO' && l.cartao_credito_usado)
-        .reduce((sum, l) => sum + l.valor, 0);
-      
-      let limiteRestante = null;
-      let utilizacaoPercentual = null;
-      
-      if (conta.limite_credito && conta.limite_credito > 0) {
-        limiteRestante = conta.limite_credito - gastosCartao;
-        utilizacaoPercentual = (gastosCartao / conta.limite_credito) * 100;
-      }
+      const transacoesConta = lancamentos.filter(l => l.conta_id === conta.id && l.status === 'CONFIRMADO');
       
       return {
         ...conta,
         transacoesCount: transacoesConta.length,
-        receitasTotal,
-        despesasTotal,
-        gastosCartao,
-        limiteRestante,
-        utilizacaoPercentual
+        receitas: conta.receitas || 0,
+        despesasDebito: conta.despesas_debito || 0,
+        faturaCartao: conta.fatura_cartao || 0,
+        limiteRestante: conta.limite_restante,
+        utilizacaoPercentual: conta.utilizacao_percentual || 0
       };
     });
   }, [contas, lancamentos]);
 
   const resumoGeral = useMemo(() => {
-    const saldoTotalInicial = contas.reduce((sum, conta) => sum + conta.saldo_inicial, 0);
-    const saldoTotalAtual = contas.reduce((sum, conta) => sum + conta.saldo_atual, 0);
-    const totalReceitas = contasComCalculos.reduce((sum, conta) => sum + conta.receitasTotal, 0);
-    const totalDespesas = contasComCalculos.reduce((sum, conta) => sum + conta.despesasTotal, 0);
+    const saldoTotalInicial = contas.reduce((sum, conta) => sum + (conta.saldo_inicial || 0), 0);
+    const saldoTotalAtual = contas.reduce((sum, conta) => sum + (conta.saldo_atual || 0), 0);
+    const totalReceitas = contasComCalculos.reduce((sum, conta) => sum + conta.receitas, 0);
+    const totalDespesas = contasComCalculos.reduce((sum, conta) => sum + conta.despesasDebito + (conta.faturaCartao || 0), 0);
     const totalInvestido = contas.reduce((sum, conta) => sum + (conta.valor_investido || 0), 0);
     const totalLimiteCredito = contas.reduce((sum, conta) => sum + (conta.limite_credito || 0), 0);
-    const totalUsadoCartao = contasComCalculos.reduce((sum, conta) => sum + (conta.gastosCartao || 0), 0);
+    const totalUsadoCartao = contasComCalculos.reduce((sum, conta) => sum + (conta.faturaCartao || 0), 0);
     const limiteDisponivelCartao = totalLimiteCredito - totalUsadoCartao;
     
     return {
@@ -520,14 +499,14 @@ export function Contas() {
                           <div className="flex justify-between items-center mb-2">
                             <span className="text-sm text-gray-600">Fatura Atual:</span>
                             <span className="text-sm font-medium text-red-600">
-                              {formatCurrency(conta.faturaCartao)}
+                              {formatCurrency(conta.faturaCartao || 0)}
                             </span>
                           </div>
 
                           <div className="flex justify-between items-center mb-2">
                             <span className="text-sm text-gray-600">Limite Restante:</span>
                             <span className={`text-sm font-medium ${
-                              conta.limiteRestante && conta.limiteRestante > 0 ? 'text-green-600' : 'text-red-600'
+                              (conta.limiteRestante || 0) > 0 ? 'text-green-600' : 'text-red-600'
                             }`}>
                               {formatCurrency(conta.limiteRestante || 0)}
                             </span>
@@ -537,18 +516,18 @@ export function Contas() {
                           <div className="mt-2">
                             <div className="flex justify-between items-center mb-1">
                               <span className="text-xs text-gray-500">Utilização do Limite</span>
-                              <span className="text-xs text-gray-500">{conta.utilizacaoPercentual?.toFixed(1)}%</span>
+                              <span className="text-xs text-gray-500">{(conta.utilizacaoPercentual || 0).toFixed(1)}%</span>
                             </div>
                             <div className="w-full bg-gray-200 rounded-full h-2">
                               <div 
                                 className={`h-2 rounded-full transition-all duration-300 ${
-                                  (conta.utilizacaoPercentual || 0) > 80 ? 'bg-red-500' :
-                                  (conta.utilizacaoPercentual || 0) > 60 ? 'bg-yellow-500' : 'bg-green-500'
+                                  conta.utilizacaoPercentual > 80 ? 'bg-red-500' :
+                                  conta.utilizacaoPercentual > 60 ? 'bg-yellow-500' : 'bg-green-500'
                                 }`}
-                                style={{ width: `${Math.min(conta.utilizacaoPercentual || 0, 100)}%` }}
+                                style={{ width: `${Math.min(conta.utilizacaoPercentual, 100)}%` }}
                               />
                             </div>
-                            {(conta.utilizacaoPercentual || 0) > 80 && (
+                            {conta.utilizacaoPercentual > 80 && (
                               <div className="flex items-center space-x-1 mt-1">
                                 <AlertCircle className="w-3 h-3 text-red-500" />
                                 <span className="text-xs text-red-600">Limite quase esgotado</span>
@@ -585,7 +564,7 @@ export function Contas() {
                             <span className="text-sm text-gray-600">Despesas:</span>
                           </div>
                           <span className="text-sm font-medium text-red-600">
-                            {formatCurrency(conta.despesasDebito + (conta.faturaCartao || 0))}
+                            {formatCurrency((conta.despesasDebito || 0) + (conta.faturaCartao || 0))}
                           </span>
                         </div>
                       </div>

@@ -62,6 +62,7 @@ export function FaturaCartao() {
       setFatura(faturaData);
     } catch (error) {
       console.error('Erro ao carregar fatura:', error);
+      alert('Erro ao carregar fatura: ' + (error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -102,7 +103,9 @@ export function FaturaCartao() {
 
   const totalFatura = fatura.reduce((sum, item) => sum + item.valor, 0);
   const contaAtual = contas.find(c => c.id === contaSelecionada);
-  const utilizacao = contaAtual?.limite_credito ? (totalFatura / contaAtual.limite_credito) * 100 : 0;
+  const utilizacao = contaAtual?.limite_credito && contaAtual.limite_credito > 0 
+    ? (totalFatura / contaAtual.limite_credito) * 100 
+    : 0;
 
   if (loading && contas.length === 0) {
     return (

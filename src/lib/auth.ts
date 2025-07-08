@@ -12,39 +12,49 @@ export interface AuthUser extends User {
   };
 }
 
+/**
+ * AuthService fornece uma classe estática para gerenciar todas as operações
+ * de autenticação e perfil de usuário com o Supabase.
+ */
 export class AuthService {
+
+  /**
+   * Registra um novo usuário com e-mail e senha, e cria um perfil associado.
+   * @param email - O e-mail do novo usuário.
+   * @param password - A senha do novo usuário (mínimo 6 caracteres).
+   * @param nome - O nome completo do usuário para o perfil.
+   */
   static async signUp(email: string, password: string, nome: string) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: {
-          nome,
-        },
+        data: { nome },
       },
     });
 
     if (error) throw error;
 
-    // Criar perfil do usuário
     if (data.user) {
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: data.user.id,
-          email: data.user.email,
-          nome,
-        });
+      const { error: profileError } = await supabase.from('profiles').insert({
+        id: data.user.id,
+        email: data.user.email,
+        nome,
+      });
 
       if (profileError) {
-        console.error('Error creating profile:', profileError);
-        // Não lançar erro aqui para não bloquear o cadastro
+        console.error('Erro ao criar o perfil do usuário:', profileError);
       }
     }
 
     return data;
   }
 
+  /**
+   * Autentica um usuário existente com e-mail e senha.
+   * @param email - O e-mail do usuário.
+   * @param password - A senha do usuário.
+   */
   static async signIn(email: string, password: string) {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -55,41 +65,83 @@ export class AuthService {
     return data;
   }
 
+  /**
+   * Desconecta o usuário atualmente logado.
+   */
   static async signOut() {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   }
 
+  /**
+   * Obtém os dados do usuário atual e seu perfil.
+   * Retorna null se não houver usuário logado ou se ocorrer um erro.
+   */
   static async getCurrentUser(): Promise<AuthUser | null> {
     try {
       const { data: { user }, error } = await supabase.auth.getUser();
-      
+
       if (error || !user) {
         return null;
       }
 
-      // Buscar perfil do usuário (opcional, não bloquear se falhar)
-      try {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('nome, avatar_url, moeda, tema, notificacoes_email, notificacoes_push')
-          .eq('id', user.id)
-          .single();
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('nome, avatar_url, moeda, tema, notificacoes_email, notificacoes_push')
+        .eq('id', user.id)
+        .single();
 
-        return {
-          ...user,
-          profile: profile || undefined,
-        };
-      } catch (profileError) {
-        // Se não conseguir buscar o perfil, retornar só o usuário
+      if (profileError) {
+        console.error('Erro ao buscar perfil do usuário atual:', profileError);
         return user as AuthUser;
       }
+
+      return { ...user, profile: profile || undefined };
+
     } catch (error) {
-      console.error('Error in getCurrentUser:', error);
+      console.error('Erro crítico em getCurrentUser:', error);
       return null;
     }
   }
 
+  /**
+   * Registra um listener que é acionado em qualquer mudança de estado de autenticação.
+   * @param callback - A função que será chamada com o estado do usuário (AuthUser ou null).
+   */
+  static onAuthStateChange(callback: (user: AuthUser | null) => void) {
+    // Usando a estrutura .then() que foi validada como funcional no seu ambiente.
+    return supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        supabase
+          .from('profiles')
+          .select('nome, avatar_url, moeda, tema, notificacoes_email, notificacoes_push')
+          .eq('id', session.user.id)
+          .single()
+          .then(({ data: profile, error }) => {
+            if (error) {
+              console.error('Erro ao buscar perfil em onAuthStateChange:', error);
+              callback(session.user as AuthUser);
+            } else {
+              if (profile?.tema) {
+                this.applyTheme(profile.tema);
+              }
+              const fullUser: AuthUser = {
+                ...session.user,
+                profile: profile || undefined,
+              };
+              callback(fullUser);
+            }
+          });
+      } else {
+        callback(null);
+      }
+    });
+  }
+
+  /**
+   * Atualiza os dados do perfil do usuário logado.
+   * @param updates - Um objeto com os campos do perfil a serem atualizados.
+   */
   static async updateProfile(updates: {
     nome?: string;
     avatar_url?: string;
@@ -113,7 +165,6 @@ export class AuthService {
 
     if (error) throw error;
     
-    // Aplicar tema imediatamente se foi alterado
     if (updates.tema) {
       this.applyTheme(updates.tema);
     }
@@ -121,10 +172,12 @@ export class AuthService {
     return data;
   }
 
+  /**
+   * Aplica um tema (light/dark/auto) à aplicação.
+   * @param theme - O nome do tema.
+   */
   static applyTheme(theme: string) {
     const root = document.documentElement;
-    
-    // Remove classes de tema existentes
     root.classList.remove('light', 'dark');
     
     if (theme === 'dark') {
@@ -132,49 +185,20 @@ export class AuthService {
     } else if (theme === 'light') {
       root.classList.add('light');
     } else if (theme === 'auto') {
-      // Detecta preferência do sistema
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       root.classList.add(prefersDark ? 'dark' : 'light');
     }
   }
 
+  /**
+   * Envia um e-mail de recuperação de senha.
+   * @param email - O e-mail para o qual o link de recuperação será enviado.
+   */
   static async resetPassword(email: string) {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     });
 
     if (error) throw error;
-  }
-
-  static onAuthStateChange(callback: (user: AuthUser | null) => void) {
-    return supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        // Buscar o perfil para garantir que o tema seja aplicado
-        supabase
-          .from('profiles')
-          .select('nome, avatar_url, moeda, tema, notificacoes_email, notificacoes_push')
-          .eq('id', session.user.id)
-          .single()
-          .then(({ data: profile, error }) => {
-            if (error) {
-              console.error('Error fetching profile on auth state change:', error);
-              callback(session.user as AuthUser);
-            } else {
-              // Aplicar tema se disponível
-              if (profile?.tema) {
-                this.applyTheme(profile.tema);
-              }
-              
-              const fullUser: AuthUser = {
-                ...session.user,
-                profile: profile || undefined,
-              };
-              callback(fullUser);
-            }
-          });
-      } else {
-        callback(null);
-      }
-    });
   }
 }

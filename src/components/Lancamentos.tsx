@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit3, Trash2, Calendar, DollarSign, Search, Filter, X, CheckCircle, Clock, XCircle, Upload } from 'lucide-react';
+import { Plus, Edit3, Trash2, Calendar, DollarSign, Search, Filter, X, CheckCircle, Clock, XCircle, CreditCard, ChevronDown, ChevronRight } from 'lucide-react';
 import { DatabaseService } from '../lib/database';
 import { AuthService } from '../lib/auth';
 import { formatCurrency, formatDate, createParcelaLancamentos, parseCurrencyInput } from '../lib/utils';
@@ -14,6 +14,7 @@ export function Lancamentos() {
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingLancamento, setEditingLancamento] = useState<string | null>(null);
+  const [expandedParcelas, setExpandedParcelas] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState({
     tipo: 'TODOS' as 'TODOS' | 'RECEITA' | 'DESPESA',
     categoriaId: '',
@@ -32,6 +33,7 @@ export function Lancamentos() {
     observacoes: '',
     status: 'CONFIRMADO' as 'PENDENTE' | 'CONFIRMADO' | 'CANCELADO',
     antecedencia_notificacao: 3,
+    cartao_credito_usado: '',
     isParcelado: false,
     numeroParcelas: 2,
   });
@@ -110,6 +112,7 @@ export function Lancamentos() {
         observacoes: formData.observacoes || null,
         status: formData.status,
         antecedencia_notificacao: formData.antecedencia_notificacao,
+        cartao_credito_usado: formData.cartao_credito_usado || null,
       };
 
       if (editingLancamento) {
@@ -149,6 +152,7 @@ export function Lancamentos() {
       observacoes: lancamento.observacoes || '',
       status: lancamento.status,
       antecedencia_notificacao: lancamento.antecedencia_notificacao || 3,
+      cartao_credito_usado: lancamento.cartao_credito_usado || '',
       isParcelado: false,
       numeroParcelas: 2,
     });
@@ -196,6 +200,7 @@ export function Lancamentos() {
       observacoes: '',
       status: 'CONFIRMADO',
       antecedencia_notificacao: 3,
+      cartao_credito_usado: '',
       isParcelado: false,
       numeroParcelas: 2,
     });
@@ -216,8 +221,72 @@ export function Lancamentos() {
     setSearchTerm('');
   };
 
+  const toggleParcelaExpansion = (parcelaId: string) => {
+    setExpandedParcelas(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(parcelaId)) {
+        newSet.delete(parcelaId);
+      } else {
+        newSet.add(parcelaId);
+      }
+      return newSet;
+    });
+  };
+
+  // Agrupar lançamentos por compra parcelada
+  const lancamentosAgrupados = useMemo(() => {
+    const grupos: any[] = [];
+    const processados = new Set<string>();
+
+    lancamentos.forEach(lancamento => {
+      if (processados.has(lancamento.id)) return;
+
+      if (lancamento.compra_parcelada_id) {
+        // Buscar todas as parcelas desta compra
+        const parcelas = lancamentos.filter(l => 
+          l.compra_parcelada_id === lancamento.compra_parcelada_id
+        ).sort((a, b) => (a.parcela_atual || 0) - (b.parcela_atual || 0));
+
+        // Marcar todas as parcelas como processadas
+        parcelas.forEach(p => processados.add(p.id));
+
+        // Criar grupo de parcelas
+        const valorTotal = parcelas.reduce((sum, p) => sum + p.valor, 0);
+        const primeiraParcela = parcelas[0];
+        
+        grupos.push({
+          id: lancamento.compra_parcelada_id,
+          tipo: 'grupo_parcelas',
+          descricao: primeiraParcela.descricao.replace(/ \(\d+\/\d+\)$/, ''),
+          valor: valorTotal,
+          data: primeiraParcela.data,
+          tipo_transacao: primeiraParcela.tipo,
+          conta_id: primeiraParcela.conta_id,
+          categoria_id: primeiraParcela.categoria_id,
+          status: primeiraParcela.status,
+          total_parcelas: primeiraParcela.total_parcelas,
+          cartao_credito_usado: primeiraParcela.cartao_credito_usado,
+          categoria: primeiraParcela.categoria,
+          conta: primeiraParcela.conta,
+          parcelas: parcelas,
+          created_at: primeiraParcela.created_at
+        });
+      } else {
+        // Lançamento individual
+        grupos.push({
+          ...lancamento,
+          tipo_transacao: lancamento.tipo,
+          tipo: 'individual'
+        });
+        processados.add(lancamento.id);
+      }
+    });
+
+    return grupos;
+  }, [lancamentos]);
+
   const lancamentosFiltrados = useMemo(() => {
-    let resultado = lancamentos;
+    let resultado = lancamentosAgrupados;
 
     if (searchTerm) {
       resultado = resultado.filter(l => 
@@ -226,7 +295,7 @@ export function Lancamentos() {
     }
 
     if (filters.tipo !== 'TODOS') {
-      resultado = resultado.filter(l => l.tipo === filters.tipo);
+      resultado = resultado.filter(l => l.tipo_transacao === filters.tipo || l.tipo === filters.tipo);
     }
 
     if (filters.status !== 'TODOS') {
@@ -248,11 +317,15 @@ export function Lancamentos() {
       resultado = resultado.filter(l => l.data <= filters.dataFim);
     }
 
-    return resultado.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
-  }, [lancamentos, searchTerm, filters]);
+    return resultado.sort((a, b) => new Date(b.data || b.created_at).getTime() - new Date(a.data || a.created_at).getTime());
+  }, [lancamentosAgrupados, searchTerm, filters]);
 
   const categoriasFiltered = categorias.filter(c => c.tipo === formData.tipo);
   const hasActiveFilters = filters.tipo !== 'TODOS' || filters.status !== 'TODOS' || filters.categoriaId || filters.contaId || filters.dataInicio || filters.dataFim || searchTerm;
+
+  // Verificar se a conta selecionada tem cartão de crédito
+  const contaSelecionada = contas.find(c => c.id === formData.conta_id);
+  const temCartaoCredito = contaSelecionada?.limite_credito && contaSelecionada.limite_credito > 0;
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -556,7 +629,7 @@ export function Lancamentos() {
                 </label>
                 <select
                   value={formData.conta_id}
-                  onChange={(e) => setFormData(prev => ({ ...prev, conta_id: e.target.value }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, conta_id: e.target.value, cartao_credito_usado: '' }))}
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                     formErrors.conta_id ? 'border-red-300' : 'border-gray-300'
                   }`}
@@ -564,7 +637,7 @@ export function Lancamentos() {
                   <option value="">Selecione uma conta</option>
                   {contas.map(conta => (
                     <option key={conta.id} value={conta.id}>
-                      {conta.nome}
+                      {conta.nome} {conta.limite_credito ? '(com cartão)' : ''}
                     </option>
                   ))}
                 </select>
@@ -572,6 +645,26 @@ export function Lancamentos() {
                   <p className="text-red-600 text-sm mt-1">{formErrors.conta_id}</p>
                 )}
               </div>
+
+              {/* Campo de cartão de crédito - só aparece se a conta tem limite e é despesa */}
+              {temCartaoCredito && formData.tipo === 'DESPESA' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <CreditCard className="w-4 h-4 inline mr-1" />
+                    Cartão de Crédito Usado
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.cartao_credito_usado}
+                    onChange={(e) => setFormData(prev => ({ ...prev, cartao_credito_usado: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Ex: Visa, Mastercard, Elo..."
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Deixe em branco se não foi usado o cartão de crédito
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -628,7 +721,7 @@ export function Lancamentos() {
                         value={formData.numeroParcelas}
                         onChange={(e) => setFormData(prev => ({ ...prev, numeroParcelas: parseInt(e.target.value) }))}
                         className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          formErrors.numeroParcelas ? 'border-red-300' : 'border-gray-300'
+                          formErrors.numeroParcelas ? 'border-blue-300' : 'border-gray-300'
                         }`}
                       />
                       {formErrors.numeroParcelas && (
@@ -670,7 +763,7 @@ export function Lancamentos() {
               Histórico de Lançamentos
             </h2>
             <span className="text-sm text-gray-500">
-              {lancamentosFiltrados.length} de {lancamentos.length} lançamentos
+              {lancamentosFiltrados.length} de {lancamentosAgrupados.length} lançamentos
             </span>
           </div>
         </div>
@@ -678,107 +771,209 @@ export function Lancamentos() {
         <div className="p-6">
           {lancamentosFiltrados.length > 0 ? (
             <div className="space-y-3">
-              {lancamentosFiltrados.map((lancamento) => {
-                const categoria = categorias.find(c => c.id === lancamento.categoria_id);
-                const conta = contas.find(c => c.id === lancamento.conta_id);
+              {lancamentosFiltrados.map((item) => {
+                const categoria = categorias.find(c => c.id === item.categoria_id);
+                const conta = contas.find(c => c.id === item.conta_id);
+                const isExpanded = expandedParcelas.has(item.id);
                 
                 return (
-                  <div key={lancamento.id} className="flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg transition-colors group">
-                    <div className="flex items-center space-x-4">
-                      <div 
-                        className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: categoria?.cor + '20' }}
-                      >
-                        {lancamento.tipo === 'RECEITA' ? (
-                          <DollarSign className="w-6 h-6 text-green-600" />
-                        ) : (
-                          <div 
-                            className="w-6 h-6 rounded-full"
-                            style={{ backgroundColor: categoria?.cor }}
-                          />
+                  <div key={item.id} className="border border-gray-200 rounded-lg">
+                    {/* Lançamento principal */}
+                    <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors group">
+                      <div className="flex items-center space-x-4 flex-1">
+                        {/* Ícone de expansão para parcelas */}
+                        {item.tipo === 'grupo_parcelas' && (
+                          <button
+                            onClick={() => toggleParcelaExpansion(item.id)}
+                            className="p-1 hover:bg-gray-200 rounded transition-colors"
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="w-4 h-4 text-gray-600" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4 text-gray-600" />
+                            )}
+                          </button>
                         )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center space-x-2">
-                          <p className="font-medium text-gray-900 truncate">{lancamento.descricao}</p>
-                          <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(lancamento.status)}`}>
-                            {getStatusIcon(lancamento.status)}
-                            <span>{lancamento.status}</span>
-                          </span>
+
+                        <div 
+                          className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0"
+                          style={{ 
+                            backgroundColor: (item.tipo_transacao || item.tipo) === 'RECEITA' 
+                              ? '#10B981' + '20' 
+                              : categoria?.cor + '20' 
+                          }}
+                        >
+                          {(item.tipo_transacao || item.tipo) === 'RECEITA' ? (
+                            <DollarSign className="w-6 h-6 text-green-600" />
+                          ) : (
+                            <div 
+                              className="w-6 h-6 rounded-full"
+                              style={{ backgroundColor: categoria?.cor }}
+                            />
+                          )}
                         </div>
-                        <div className="flex items-center space-x-2 text-sm text-gray-500">
-                          <Calendar className="w-4 h-4 flex-shrink-0" />
-                          <span>{formatDate(lancamento.data)}</span>
-                          <span>•</span>
-                          <span className="truncate">{categoria?.nome}</span>
-                          <span>•</span>
-                          <span className="truncate">{conta?.nome}</span>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center space-x-2">
+                            <p className="font-medium text-gray-900 truncate">{item.descricao}</p>
+                            <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(item.status)}`}>
+                              {getStatusIcon(item.status)}
+                              <span>{item.status}</span>
+                            </span>
+                            {item.cartao_credito_usado && (
+                              <span className="inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700">
+                                <CreditCard className="w-3 h-3" />
+                                <span>{item.cartao_credito_usado}</span>
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-2 text-sm text-gray-500">
+                            <Calendar className="w-4 h-4 flex-shrink-0" />
+                            <span>{formatDate(item.data)}</span>
+                            <span>•</span>
+                            <span className="truncate">{categoria?.nome}</span>
+                            <span>•</span>
+                            <span className="truncate">{conta?.nome}</span>
+                          </div>
+                          {item.tipo === 'grupo_parcelas' && (
+                            <div className="text-xs text-blue-600 mt-1">
+                              {item.total_parcelas} parcelas
+                            </div>
+                          )}
+                          {item.total_parcelas && item.tipo !== 'grupo_parcelas' && (
+                            <div className="text-xs text-blue-600 mt-1">
+                              Parcela {item.parcela_atual}/{item.total_parcelas}
+                            </div>
+                          )}
+                          {item.observacoes && (
+                            <div className="text-xs text-gray-400 mt-1 truncate">
+                              {item.observacoes}
+                            </div>
+                          )}
                         </div>
-                        {lancamento.total_parcelas && (
-                          <div className="text-xs text-blue-600 mt-1">
-                            Parcela {lancamento.parcela_atual}/{lancamento.total_parcelas}
-                          </div>
-                        )}
-                        {lancamento.observacoes && (
-                          <div className="text-xs text-gray-400 mt-1 truncate">
-                            {lancamento.observacoes}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-3 flex-shrink-0">
-                      <div className={`font-semibold text-lg ${
-                        lancamento.tipo === 'RECEITA' ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {lancamento.tipo === 'RECEITA' ? '+' : '-'} {formatCurrency(lancamento.valor)}
                       </div>
                       
-                      <div className="opacity-0 group-hover:opacity-100 flex items-center space-x-1 transition-opacity">
-                        {lancamento.status !== 'CONFIRMADO' && (
-                          <button 
-                            onClick={() => handleStatusChange(lancamento.id, 'CONFIRMADO')}
-                            className="p-1 text-gray-400 hover:text-green-600 transition-colors"
-                            title="Confirmar"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                          </button>
-                        )}
-                        {lancamento.status !== 'PENDENTE' && (
-                          <button 
-                            onClick={() => handleStatusChange(lancamento.id, 'PENDENTE')}
-                            className="p-1 text-gray-400 hover:text-yellow-600 transition-colors"
-                            title="Marcar como Pendente"
-                          >
-                            <Clock className="w-4 h-4" />
-                          </button>
-                        )}
-                        {lancamento.status !== 'CANCELADO' && (
-                          <button 
-                            onClick={() => handleStatusChange(lancamento.id, 'CANCELADO')}
-                            className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                            title="Cancelar"
-                          >
-                            <XCircle className="w-4 h-4" />
-                          </button>
-                        )}
+                      <div className="flex items-center space-x-3 flex-shrink-0">
+                        <div className={`font-semibold text-lg ${
+                          (item.tipo_transacao || item.tipo) === 'RECEITA' ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {(item.tipo_transacao || item.tipo) === 'RECEITA' ? '+ ' : '- '}{formatCurrency(item.valor)}
+                        </div>
                         
-                        <button 
-                          onClick={() => handleEdit(lancamento)}
-                          className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                          title="Editar"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(lancamento.id)}
-                          className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                          title="Excluir"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {item.tipo !== 'grupo_parcelas' && (
+                          <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {item.status !== 'CONFIRMADO' && (
+                              <button 
+                                onClick={() => handleStatusChange(item.id, 'CONFIRMADO')}
+                                className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all duration-200"
+                                title="Confirmar"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                              </button>
+                            )}
+                            {item.status !== 'PENDENTE' && (
+                              <button 
+                                onClick={() => handleStatusChange(item.id, 'PENDENTE')}
+                                className="p-2 text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition-all duration-200"
+                                title="Marcar como Pendente"
+                              >
+                                <Clock className="w-4 h-4" />
+                              </button>
+                            )}
+                            {item.status !== 'CANCELADO' && (
+                              <button 
+                                onClick={() => handleStatusChange(item.id, 'CANCELADO')}
+                                className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                                title="Cancelar"
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </button>
+                            )}
+                            
+                            <button 
+                              onClick={() => handleEdit(item)}
+                              className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                              title="Editar"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(item.id)}
+                              className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                              title="Excluir"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
+
+                    {/* Parcelas expandidas */}
+                    {item.tipo === 'grupo_parcelas' && isExpanded && (
+                      <div className="border-t border-gray-200 bg-gray-50">
+                        <div className="p-4">
+                          <h4 className="text-sm font-medium text-gray-700 mb-3">Parcelas:</h4>
+                          <div className="space-y-2">
+                            {item.parcelas.map((parcela: any) => (
+                              <div key={parcela.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 group">
+                                <div className="flex items-center space-x-3">
+                                  <span className="text-sm font-medium text-gray-600">
+                                    {parcela.parcela_atual}/{parcela.total_parcelas}
+                                  </span>
+                                  <span className="text-sm text-gray-600">
+                                    {formatDate(parcela.data)}
+                                  </span>
+                                  <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(parcela.status)}`}>
+                                    {getStatusIcon(parcela.status)}
+                                    <span>{parcela.status}</span>
+                                  </span>
+                                </div>
+                                <div className="flex items-center space-x-3">
+                                  <span className="font-medium text-red-600">
+                                    {formatCurrency(parcela.valor)}
+                                  </span>
+                                  <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {parcela.status !== 'CONFIRMADO' && (
+                                      <button 
+                                        onClick={() => handleStatusChange(parcela.id, 'CONFIRMADO')}
+                                        className="p-1 text-gray-400 hover:text-green-600 transition-colors"
+                                        title="Confirmar"
+                                      >
+                                        <CheckCircle className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                    {parcela.status !== 'PENDENTE' && (
+                                      <button 
+                                        onClick={() => handleStatusChange(parcela.id, 'PENDENTE')}
+                                        className="p-1 text-gray-400 hover:text-yellow-600 transition-colors"
+                                        title="Marcar como Pendente"
+                                      >
+                                        <Clock className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                    <button 
+                                      onClick={() => handleEdit(parcela)}
+                                      className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                                      title="Editar"
+                                    >
+                                      <Edit3 className="w-4 h-4" />
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDelete(parcela.id)}
+                                      className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                                      title="Excluir"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

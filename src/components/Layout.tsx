@@ -21,18 +21,20 @@ import {
   Scan,
   Camera,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ArrowLeft
 } from 'lucide-react';
 import { AuthService, type AuthUser } from '../lib/auth';
 import { DatabaseService } from '../lib/database';
 import { UnifiedChatBot } from './ChatBot/UnifiedChatBot';
 import { NotificationPanel } from './Notifications/NotificationPanel';
-import { AnomaliaDetector } from './AnomaliaDetector/AnomaliaDetector';
 
 interface LayoutProps {
   children: React.ReactNode;
   currentPage: string;
   onPageChange: (page: string) => void;
+  onGoBack?: () => void;
+  canGoBack?: boolean;
   user: AuthUser;
 }
 
@@ -54,12 +56,11 @@ const advancedMenuItems = [
   { id: 'ocr', label: 'OCR Recibos', icon: Camera },
 ];
 
-export function Layout({ children, currentPage, onPageChange, user }: LayoutProps) {
+export function Layout({ children, currentPage, onPageChange, onGoBack, canGoBack, user }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [showAnomalias, setShowAnomalias] = useState(false);
   const [showAdvancedMenu, setShowAdvancedMenu] = useState(false);
   const [notificacoesPendentes, setNotificacoesPendentes] = useState<any[]>([]);
 
@@ -300,28 +301,31 @@ export function Layout({ children, currentPage, onPageChange, user }: LayoutProp
       )}
 
       {/* Main Content */}
-      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
-        sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
-      }`}>
+      <div className="flex-1 flex flex-col min-w-0 transition-all duration-300">
         {/* Top Header */}
         <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30">
           <div className="px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
-              {/* Mobile menu button */}
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="lg:hidden p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <Menu className="w-6 h-6" />
-              </button>
+              {/* Left side - Mobile menu and back button */}
+              <div className="flex items-center space-x-3">
+                {/* Mobile menu button */}
+                <button
+                  onClick={() => setSidebarOpen(true)}
+                  className="lg:hidden p-2 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <Menu className="w-6 h-6" />
+                </button>
 
-              {/* Page Title - Hidden on mobile */}
-              <div className="hidden sm:block">
-                <h1 className="text-xl font-semibold text-gray-900 capitalize">
-                  {menuItems.find(item => item.id === currentPage)?.label || 
-                   advancedMenuItems.find(item => item.id === currentPage)?.label || 
-                   'Dashboard'}
-                </h1>
+                {/* Back button */}
+                {canGoBack && onGoBack && (
+                  <button
+                    onClick={onGoBack}
+                    className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span className="hidden sm:inline">Voltar</span>
+                  </button>
+                )}
               </div>
 
               {/* Right side actions */}
@@ -431,20 +435,6 @@ export function Layout({ children, currentPage, onPageChange, user }: LayoutProp
         {/* Main Content Area */}
         <main className="flex-1 overflow-auto">
           <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
-            {/* Detector de Anomalias - Mostrar apenas no dashboard */}
-            {currentPage === 'dashboard' && (
-              <div className="mb-6">
-                <button
-                  onClick={() => setShowAnomalias(!showAnomalias)}
-                  className="mb-4 flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
-                >
-                  <span>{showAnomalias ? 'Ocultar' : 'Mostrar'} Detecção de Anomalias</span>
-                </button>
-                
-                {showAnomalias && <AnomaliaDetector />}
-              </div>
-            )}
-            
             {children}
           </div>
         </main>

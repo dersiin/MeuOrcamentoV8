@@ -3,11 +3,41 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
+// Função para exibir um erro visível na tela em caso de falha de configuração.
+function showConfigurationError() {
+  const root = document.getElementById('root');
+  if (root) {
+    root.innerHTML = `
+      <div style="font-family: sans-serif; padding: 2rem; text-align: center; background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; border-radius: 8px; margin: 2rem;">
+        <h1 style="font-size: 1.5rem; font-weight: bold;">Erro de Configuração</h1>
+        <p style="margin-top: 1rem;">
+          As variáveis de ambiente do Supabase (VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY) não foram encontradas.
+        </p>
+        <p style="margin-top: 0.5rem;">
+          Por favor, crie um arquivo <code>.env</code> na raiz do projeto e adicione as suas credenciais do Supabase.
+        </p>
+        <p style="margin-top: 1rem; font-size: 0.875rem; color: #7f1d1d;">
+          Lembre-se de reiniciar o servidor de desenvolvimento após criar o arquivo.
+        </p>
+      </div>
+    `;
+  }
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Erro: Variáveis de ambiente do Supabase não configuradas.');
+  showConfigurationError();
+  // Lançar o erro impede o resto do código de ser executado com uma configuração inválida.
+  throw new Error('Missing Supabase environment variables. Check the on-screen message.');
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  }
+});
 
 // Tipos TypeScript para o banco
 export interface Database {
@@ -91,7 +121,7 @@ export interface Database {
           id: string;
           user_id: string;
           nome: string;
-          tipo: 'CORRENTE' | 'POUPANCA' | 'INVESTIMENTO' | 'CARTEIRA' | 'CARTAO_CREDITO';
+          tipo: 'CORRENTE' | 'POUPANCA' | 'INVESTIMENTO' | 'CARTEIRA';
           saldo_inicial: number;
           saldo_atual: number;
           limite_credito: number | null;
@@ -108,7 +138,7 @@ export interface Database {
         Insert: {
           user_id: string;
           nome: string;
-          tipo?: 'CORRENTE' | 'POUPANCA' | 'INVESTIMENTO' | 'CARTEIRA' | 'CARTAO_CREDITO';
+          tipo?: 'CORRENTE' | 'POUPANCA' | 'INVESTIMENTO' | 'CARTEIRA';
           saldo_inicial: number;
           limite_credito?: number | null;
           valor_investido?: number | null;
@@ -121,7 +151,7 @@ export interface Database {
         };
         Update: {
           nome?: string;
-          tipo?: 'CORRENTE' | 'POUPANCA' | 'INVESTIMENTO' | 'CARTEIRA' | 'CARTAO_CREDITO';
+          tipo?: 'CORRENTE' | 'POUPANCA' | 'INVESTIMENTO' | 'CARTEIRA';
           saldo_inicial?: number;
           limite_credito?: number | null;
           valor_investido?: number | null;
@@ -159,6 +189,7 @@ export interface Database {
           local: string | null;
           antecedencia_notificacao: number | null;
           arquivo_comprovante: string | null;
+          cartao_credito_usado: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -186,6 +217,7 @@ export interface Database {
           local?: string | null;
           antecedencia_notificacao?: number | null;
           arquivo_comprovante?: string | null;
+          cartao_credito_usado?: string | null;
         };
         Update: {
           conta_id?: string;
@@ -210,6 +242,7 @@ export interface Database {
           local?: string | null;
           antecedencia_notificacao?: number | null;
           arquivo_comprovante?: string | null;
+          cartao_credito_usado?: string | null;
         };
       };
       metas_financeiras: {
@@ -323,6 +356,40 @@ export interface Database {
           frequencia?: 'UNICO' | 'SEMANAL' | 'MENSAL' | 'ANUAL' | null;
           status?: 'PENDENTE' | 'NOTIFICADO' | 'CONCLUIDO' | 'CANCELADO';
           antecedencia_dias?: number;
+        };
+      };
+      patrimonio: {
+        Row: {
+          id: string;
+          user_id: string;
+          nome: string;
+          tipo: 'IMOVEL' | 'VEICULO' | 'INVESTIMENTO' | 'OUTRO';
+          valor_atual: number;
+          valor_compra: number | null;
+          data_aquisicao: string | null;
+          descricao: string | null;
+          ativo: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          nome: string;
+          tipo: 'IMOVEL' | 'VEICULO' | 'INVESTIMENTO' | 'OUTRO';
+          valor_atual: number;
+          valor_compra?: number | null;
+          data_aquisicao?: string | null;
+          descricao?: string | null;
+          ativo?: boolean;
+        };
+        Update: {
+          nome?: string;
+          tipo?: 'IMOVEL' | 'VEICULO' | 'INVESTIMENTO' | 'OUTRO';
+          valor_atual?: number;
+          valor_compra?: number | null;
+          data_aquisicao?: string | null;
+          descricao?: string | null;
+          ativo?: boolean;
         };
       };
     };

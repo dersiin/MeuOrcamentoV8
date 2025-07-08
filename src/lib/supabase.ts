@@ -188,8 +188,8 @@ export interface Database {
           longitude: number | null;
           local: string | null;
           antecedencia_notificacao: number | null;
-          arquivo_comprovante: string | null;
           cartao_credito_usado: string | null;
+          forma_pagamento: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -216,8 +216,8 @@ export interface Database {
           longitude?: number | null;
           local?: string | null;
           antecedencia_notificacao?: number | null;
-          arquivo_comprovante?: string | null;
           cartao_credito_usado?: string | null;
+          forma_pagamento?: string | null;
         };
         Update: {
           conta_id?: string;
@@ -241,8 +241,8 @@ export interface Database {
           longitude?: number | null;
           local?: string | null;
           antecedencia_notificacao?: number | null;
-          arquivo_comprovante?: string | null;
           cartao_credito_usado?: string | null;
+          forma_pagamento?: string | null;
         };
       };
       metas_financeiras: {

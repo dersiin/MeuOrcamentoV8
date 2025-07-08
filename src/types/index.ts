@@ -77,6 +77,7 @@ export interface Lancamento {
   local: string | null;
   antecedencia_notificacao: number | null;
   cartao_credito_usado: string | null;
+  forma_pagamento: string | null;
   created_at: string;
   updated_at: string;
   categoria?: Categoria;

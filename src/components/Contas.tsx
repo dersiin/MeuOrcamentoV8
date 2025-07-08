@@ -352,7 +352,7 @@ export function Contas() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Limite do Cartão de Crédito
+                  Limite de Crédito (Opcional)
                 </label>
                 <CurrencyInput
                   value={formData.limite_credito}
@@ -364,7 +364,7 @@ export function Contas() {
                   error={!!formErrors.limite_credito}
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Deixe em branco se a conta não possui cartão de crédito
+                  Informe se esta conta possui função de crédito (cartão)
                 </p>
                 {formErrors.limite_credito && (
                   <p className="text-red-600 text-sm mt-1">{formErrors.limite_credito}</p>
@@ -499,26 +499,28 @@ export function Contas() {
                       </div>
                       
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Saldo Atual:</span>
-                        <span className={`text-lg font-bold ${
-                          conta.saldo_atual >= 0 ? 'text-green-600' : 'text-red-600'
+                        <span className="text-sm text-gray-600">Saldo em Conta:</span>
+                        <span className={`text-xl font-bold ${
+                          conta.saldo_real >= 0 ? 'text-green-600' : 'text-red-600'
                         }`}>
-                          {formatCurrency(conta.saldo_atual)}
+                          {formatCurrency(conta.saldo_real)}
                         </span>
                       </div>
 
-                      {/* Informações do cartão de crédito */}
+                      {/* Seção de Crédito */}
                       {conta.limite_credito && conta.limite_credito > 0 && (
-                        <div className="pt-3 border-t border-gray-100">
+                        <div className="pt-3 mt-3 border-t border-gray-100 bg-purple-50 -mx-6 px-6 pb-3 rounded-b-lg">
+                          <h4 className="text-sm font-semibold text-purple-900 mb-2">💳 Função Crédito</h4>
+                          
                           <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm text-gray-600">Limite do Cartão:</span>
+                            <span className="text-sm text-gray-600">Limite Total:</span>
                             <span className="text-sm font-medium">{formatCurrency(conta.limite_credito)}</span>
                           </div>
                           
                           <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm text-gray-600">Usado no Cartão:</span>
+                            <span className="text-sm text-gray-600">Fatura Atual:</span>
                             <span className="text-sm font-medium text-red-600">
-                              {formatCurrency(conta.gastosCartao)}
+                              {formatCurrency(conta.faturaCartao)}
                             </span>
                           </div>
 
@@ -531,10 +533,10 @@ export function Contas() {
                             </span>
                           </div>
 
-                          {/* Barra de utilização do cartão */}
+                          {/* Barra de utilização */}
                           <div className="mt-2">
                             <div className="flex justify-between items-center mb-1">
-                              <span className="text-xs text-gray-500">Utilização do Cartão</span>
+                              <span className="text-xs text-gray-500">Utilização do Limite</span>
                               <span className="text-xs text-gray-500">{conta.utilizacaoPercentual?.toFixed(1)}%</span>
                             </div>
                             <div className="w-full bg-gray-200 rounded-full h-2">
@@ -573,7 +575,7 @@ export function Contas() {
                             <span className="text-sm text-gray-600">Receitas:</span>
                           </div>
                           <span className="text-sm font-medium text-green-600">
-                            {formatCurrency(conta.receitasTotal)}
+                            {formatCurrency(conta.receitas)}
                           </span>
                         </div>
                         
@@ -583,7 +585,7 @@ export function Contas() {
                             <span className="text-sm text-gray-600">Despesas:</span>
                           </div>
                           <span className="text-sm font-medium text-red-600">
-                            {formatCurrency(conta.despesasTotal)}
+                            {formatCurrency(conta.despesasDebito + (conta.faturaCartao || 0))}
                           </span>
                         </div>
                       </div>

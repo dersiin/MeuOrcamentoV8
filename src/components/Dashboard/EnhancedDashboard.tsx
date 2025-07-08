@@ -345,7 +345,7 @@ export function EnhancedDashboard({ onNavigate }: EnhancedDashboardProps) {
       </div>
 
       {/* KPIs Principais */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 lg:gap-6">
         {data.kpis.map((kpi, index) => {
           const IconComponent = getIconComponent(kpi.icon || 'DollarSign');
           

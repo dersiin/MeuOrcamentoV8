@@ -629,7 +629,12 @@ export function Lancamentos() {
                 </label>
                 <select
                   value={formData.conta_id}
-                  onChange={(e) => setFormData(prev => ({ ...prev, conta_id: e.target.value, cartao_credito_usado: '' }))}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    conta_id: e.target.value, 
+                    forma_pagamento: 'DEBITO', // Reset para débito ao trocar conta
+                    cartao_credito_usado: '' 
+                  }))}
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                     formErrors.conta_id ? 'border-red-300' : 'border-gray-300'
                   }`}
@@ -637,7 +642,7 @@ export function Lancamentos() {
                   <option value="">Selecione uma conta</option>
                   {contas.map(conta => (
                     <option key={conta.id} value={conta.id}>
-                      {conta.nome} {conta.limite_credito ? '(com cartão)' : ''}
+                      {conta.nome} {conta.limite_credito && conta.limite_credito > 0 ? '(com função crédito)' : ''}
                     </option>
                   ))}
                 </select>
@@ -646,12 +651,34 @@ export function Lancamentos() {
                 )}
               </div>
 
-              {/* Campo de cartão de crédito - só aparece se a conta tem limite e é despesa */}
-              {temCartaoCredito && formData.tipo === 'DESPESA' && (
+              {/* Forma de Pagamento - só aparece para despesas em contas com função crédito */}
+              {formData.tipo === 'DESPESA' && temCartaoCredito && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Forma de Pagamento *
+                  </label>
+                  <select
+                    value={formData.forma_pagamento}
+                    onChange={(e) => setFormData(prev => ({ ...prev, forma_pagamento: e.target.value as 'DEBITO' | 'CREDITO' }))}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      formErrors.forma_pagamento ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                  >
+                    <option value="DEBITO">💳 Débito (sai do saldo da conta)</option>
+                    <option value="CREDITO">🏦 Crédito (vai para a fatura)</option>
+                  </select>
+                  {formErrors.forma_pagamento && (
+                    <p className="text-red-600 text-sm mt-1">{formErrors.forma_pagamento}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Campo de identificação do cartão - só aparece se for crédito */}
+              {formData.tipo === 'DESPESA' && formData.forma_pagamento === 'CREDITO' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     <CreditCard className="w-4 h-4 inline mr-1" />
-                    Cartão de Crédito Usado
+                    Identificação do Cartão (Opcional)
                   </label>
                   <input
                     type="text"
@@ -661,7 +688,7 @@ export function Lancamentos() {
                     placeholder="Ex: Visa, Mastercard, Elo..."
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    Deixe em branco se não foi usado o cartão de crédito
+                    Para identificar qual cartão foi usado (opcional)
                   </p>
                 </div>
               )}

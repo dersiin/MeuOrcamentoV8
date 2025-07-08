@@ -52,8 +52,12 @@ export const CONTA_TIPOS = {
   CORRENTE: 'Conta Corrente',
   POUPANCA: 'Poupança',
   INVESTIMENTO: 'Investimento',
-  CARTEIRA: 'Carteira',
-  CARTAO_CREDITO: 'Cartão de Crédito'
+  CARTEIRA: 'Carteira'
+};
+
+export const FORMA_PAGAMENTO = {
+  DEBITO: 'Débito',
+  CREDITO: 'Crédito'
 };
 
 export const LANCAMENTO_STATUS = {

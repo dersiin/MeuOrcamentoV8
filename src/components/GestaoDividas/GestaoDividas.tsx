@@ -158,7 +158,7 @@ export function GestaoDividas() {
     if (confirm('Tem certeza que deseja excluir esta dívida?')) {
       try {
         setLoading(true);
-        await DatabaseService.deletePatrimonio(id);
+        await DatabaseService.deleteDivida(id);
         await loadDividas();
         alert('Dívida excluída com sucesso!');
       } catch (error) {

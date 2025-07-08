@@ -42,6 +42,7 @@ const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
   { id: 'lancamentos', label: 'Lançamentos', icon: PlusCircle },
   { id: 'contas', label: 'Contas', icon: CreditCard },
+  { id: 'fatura', label: 'Fatura Cartão', icon: FileText },
   { id: 'categorias', label: 'Categorias', icon: Tags },
   { id: 'metas', label: 'Metas', icon: Target },
   { id: 'orcamentos', label: 'Orçamentos', icon: Calculator },

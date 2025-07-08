@@ -4,6 +4,7 @@ import { Layout } from './components/Layout';
 import { EnhancedDashboard } from './components/Dashboard/EnhancedDashboard';
 import { Lancamentos } from './components/Lancamentos';
 import { Contas } from './components/Contas';
+import { FaturaCartao } from './components/FaturaCartao/FaturaCartao';
 import { Categorias } from './components/Categorias';
 import { MetasFinanceiras } from './components/Metas/MetasFinanceiras';
 import { Transferencias } from './components/Transferencias/Transferencias';
@@ -82,6 +83,8 @@ function App() {
         return <Lancamentos />;
       case 'contas':
         return <Contas />;
+      case 'fatura':
+        return <FaturaCartao />;
       case 'categorias':
         return <Categorias />;
       case 'metas':

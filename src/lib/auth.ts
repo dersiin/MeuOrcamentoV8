@@ -110,7 +110,19 @@ export class AuthService {
    */
   static onAuthStateChange(callback: (user: AuthUser | null) => void) {
     // Usando a estrutura .then() que foi validada como funcional no seu ambiente.
-    return supabase.auth.onAuthStateChange((event, session) => {
+    return supabase.auth.onAuthStateChange(async (event, session) => {
+      // Verificar se há erro na sessão (token inválido, expirado, etc.)
+      if (session?.error || event === 'TOKEN_REFRESHED' && !session) {
+        console.warn('Sessão inválida detectada, fazendo logout automático');
+        try {
+          await this.signOut();
+        } catch (error) {
+          console.error('Erro ao fazer logout automático:', error);
+        }
+        callback(null);
+        return;
+      }
+
       if (session?.user) {
         supabase
           .from('profiles')

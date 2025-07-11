@@ -16,12 +16,19 @@ import { RelatoriosSankey } from './components/RelatoriosSankey/RelatoriosSankey
 import { OCRRecibos } from './components/OCRRecibos/OCRRecibos';
 import { Configuracoes } from './components/Configuracoes';
 import { AuthService, type AuthUser } from './lib/auth';
+import { Toast } from './components/Common/Toast';
+import { DatabaseService } from './lib/database';
 
 function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [navigationHistory, setNavigationHistory] = useState<string[]>(['dashboard']);
+  const [toast, setToast] = useState<{ message: string; type?: 'success' | 'error' | 'info' | 'warning' } | null>(null);
+  const [lancamentos, setLancamentos] = useState<any[]>([]);
+  const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+    setToast({ message, type });
+  };
 
   // useEffect foi reescrito para ser mais simples e robusto.
   useEffect(() => {
@@ -49,6 +56,12 @@ function App() {
       subscription.unsubscribe();
     };
   }, []); // O array de dependências vazio garante que o efeito rode apenas uma vez.
+
+  useEffect(() => {
+    if (user) {
+      DatabaseService.getLancamentos().then(setLancamentos);
+    }
+  }, [user]);
 
   // Função melhorada para navegação com histórico
   const handlePageChange = (page: string) => {
@@ -78,11 +91,11 @@ function App() {
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':
-        return <EnhancedDashboard onNavigate={handlePageChange} />;
+        return <EnhancedDashboard onNavigate={handlePageChange} lancamentos={lancamentos} />;
       case 'lancamentos':
-        return <Lancamentos />;
+        return <Lancamentos user={user} showToast={showToast} />;
       case 'contas':
-        return <Contas />;
+        return <Contas user={user} />;
       case 'fatura':
         return <FaturaCartao />;
       case 'categorias':
@@ -106,7 +119,7 @@ function App() {
       case 'configuracoes':
         return <Configuracoes />;
       default:
-        return <EnhancedDashboard onNavigate={handlePageChange} />;
+        return <EnhancedDashboard onNavigate={handlePageChange} lancamentos={lancamentos} />;
     }
   };
 
@@ -131,15 +144,25 @@ function App() {
 
   // App principal
   return (
-    <Layout 
-      currentPage={currentPage} 
-      onPageChange={handlePageChange}
-      onGoBack={handleGoBack}
-      canGoBack={navigationHistory.length > 1}
-      user={user}
-    >
-      {renderPage()}
-    </Layout>
+    <>
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+      <Layout 
+        currentPage={currentPage} 
+        onPageChange={handlePageChange}
+        onGoBack={handleGoBack}
+        canGoBack={navigationHistory.length > 1}
+        user={user as AuthUser}
+        lancamentos={lancamentos}
+      >
+        {renderPage()}
+      </Layout>
+    </>
   );
 }
 

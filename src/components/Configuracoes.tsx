@@ -4,6 +4,7 @@ import { AuthService } from '../lib/auth';
 import { DatabaseService } from '../lib/database';
 import { exportToJson, importFromJson } from '../lib/utils';
 import { supabase } from '../lib/supabase';
+import { PageTemplate } from './Common/PageTemplate';
 
 export function Configuracoes() {
   const [profile, setProfile] = useState<any>(null);
@@ -336,19 +337,16 @@ Tem certeza que deseja continuar?
   }
 
   return (
-    <div className="space-y-6 lg:space-y-8">
-      {/* Header */}
-      <div className="text-center lg:text-left">
-        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Configurações</h1>
-        <p className="text-gray-600 mt-2">Gerencie seu perfil, dados e configurações da aplicação</p>
-      </div>
-
+    <PageTemplate
+      title="Configurações"
+      subtitle="Personalize sua experiência, preferências e dados do sistema"
+    >
       {/* Status de Importação */}
       {importStatus !== 'idle' && (
         <div className={`rounded-lg p-4 ${
-          importStatus === 'loading' ? 'bg-blue-50 border border-blue-200' :
-          importStatus === 'success' ? 'bg-green-50 border border-green-200' :
-          'bg-red-50 border border-red-200'
+          importStatus === 'loading' ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700' :
+          importStatus === 'success' ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700' :
+          'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700'
         }`}>
           <div className="flex items-center space-x-2">
             {importStatus === 'loading' && (
@@ -368,7 +366,7 @@ Tem certeza que deseja continuar?
       )}
 
       {/* Configurações do Perfil */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 lg:p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 p-4 lg:p-6">
         <div className="flex items-center space-x-2 mb-6">
           <User className="w-5 h-5 text-blue-600" />
           <h2 className="text-lg lg:text-xl font-semibold text-gray-900">Perfil do Usuário</h2>
@@ -540,7 +538,7 @@ Tem certeza que deseja continuar?
       </div>
 
       {/* Informações do Sistema */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 lg:p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 p-4 lg:p-6">
         <div className="flex items-center space-x-2 mb-4">
           <Shield className="w-5 h-5 text-green-600" />
           <h2 className="text-lg lg:text-xl font-semibold text-gray-900">Privacidade & Segurança</h2>
@@ -567,26 +565,26 @@ Tem certeza que deseja continuar?
       </div>
 
       {/* Estatísticas dos Dados */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 lg:p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 p-4 lg:p-6">
         <div className="flex items-center space-x-2 mb-4">
           <Database className="w-5 h-5 text-blue-600" />
           <h2 className="text-lg lg:text-xl font-semibold text-gray-900">Seus Dados</h2>
         </div>
         
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="text-center p-4 bg-gray-50 rounded-lg">
+          <div className="text-center p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg">
             <div className="text-xl lg:text-2xl font-bold text-blue-600">{categorias.length}</div>
             <div className="text-xs lg:text-sm text-gray-600">Categorias</div>
           </div>
-          <div className="text-center p-4 bg-gray-50 rounded-lg">
+          <div className="text-center p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg">
             <div className="text-xl lg:text-2xl font-bold text-green-600">{contas.length}</div>
             <div className="text-xs lg:text-sm text-gray-600">Contas</div>
           </div>
-          <div className="text-center p-4 bg-gray-50 rounded-lg">
+          <div className="text-center p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg">
             <div className="text-xl lg:text-2xl font-bold text-purple-600">{totalTransacoes}</div>
             <div className="text-xs lg:text-sm text-gray-600">Lançamentos</div>
           </div>
-          <div className="text-center p-4 bg-gray-50 rounded-lg">
+          <div className="text-center p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg">
             <div className="text-xl lg:text-2xl font-bold text-orange-600">{comprasParceladasCount}</div>
             <div className="text-xs lg:text-sm text-gray-600">Compras Parceladas</div>
             {parcelasCount > 0 && (
@@ -597,7 +595,7 @@ Tem certeza que deseja continuar?
       </div>
 
       {/* Backup e Restore */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 lg:p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 p-4 lg:p-6">
         <h2 className="text-lg lg:text-xl font-semibold text-gray-900 mb-4">Backup & Restauração</h2>
         
         <div className="space-y-4">
@@ -686,7 +684,7 @@ Tem certeza que deseja continuar?
       </div>
 
       {/* Dicas de Uso */}
-      <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 lg:p-6">
+      <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-700 p-4 lg:p-6">
         <h2 className="text-lg lg:text-xl font-semibold text-blue-900 mb-4">💡 Dicas de Uso</h2>
         
         <div className="space-y-2 text-sm text-blue-800">
@@ -714,7 +712,7 @@ Tem certeza que deseja continuar?
       </div>
 
       {/* Informações Técnicas */}
-      <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 lg:p-6">
+      <div className="bg-gray-50 dark:bg-gray-900/20 rounded-xl border border-gray-200 dark:border-gray-700 p-4 lg:p-6">
         <h2 className="text-base lg:text-lg font-semibold text-gray-900 mb-4">ℹ️ Informações Técnicas</h2>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-sm text-gray-600">
@@ -732,6 +730,6 @@ Tem certeza que deseja continuar?
           </div>
         </div>
       </div>
-    </div>
+    </PageTemplate>
   );
 }

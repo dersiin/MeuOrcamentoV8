@@ -2,8 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, CreditCard, Calendar, TrendingDown, AlertTriangle, CheckCircle, Edit3, Trash2 } from 'lucide-react';
 import { DatabaseService } from '../../lib/database';
 import { AuthService } from '../../lib/auth';
-import { formatCurrency, formatDate, parseCurrencyInput } from '../../lib/utils';
+import { formatCurrency, formatDate, parseCurrencyInput, validateDividaField, validateDividaForm, DividaFormData } from '../../lib/utils';
 import { CurrencyInput } from '../Common/CurrencyInput';
+import { ConfirmModal } from '../Common/ConfirmModal';
+import { PageTemplate } from '../Common/PageTemplate';
 
 interface Divida {
   id: string;
@@ -23,14 +25,14 @@ interface Divida {
   created_at: string;
 }
 
-export function GestaoDividas() {
+export function GestaoDividas({ showToast }: { showToast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
   const [dividas, setDividas] = useState<Divida[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingDivida, setEditingDivida] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<DividaFormData>({
     nome: '',
-    tipo: 'EMPRESTIMO' as 'EMPRESTIMO' | 'FINANCIAMENTO' | 'CARTAO_CREDITO' | 'OUTRO',
+    tipo: 'EMPRESTIMO',
     valor_total: 0,
     taxa_juros: 0,
     data_inicio: new Date().toISOString().split('T')[0],
@@ -38,6 +40,10 @@ export function GestaoDividas() {
     parcelas_total: 1,
     observacoes: '',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
   useEffect(() => {
     loadDividas();
@@ -46,43 +52,7 @@ export function GestaoDividas() {
   const loadDividas = async () => {
     try {
       setLoading(true);
-      // Usar a tabela de patrimônio para armazenar dívidas como valores negativos
-      const patrimonioData = await DatabaseService.getPatrimonio();
-      
-      // Filtrar apenas dívidas (valores negativos ou descrição contendo informações de dívida)
-      const dividasData = patrimonioData
-        .filter(item => item.valor_atual < 0 || (item.descricao && item.descricao.includes('DIVIDA:')))
-        .map(item => {
-          // Extrair informações da descrição
-          const descricao = item.descricao || '';
-          const tipoMatch = descricao.match(/DIVIDA:(\w+)/);
-          const taxaMatch = descricao.match(/Taxa:\s*([\d.]+)%/);
-          const parcelasMatch = descricao.match(/Parcelas:\s*(\d+)/);
-          const vencimentoMatch = descricao.match(/Vencimento:\s*([\d-]+)/);
-          
-          const valorTotal = Math.abs(item.valor_compra || item.valor_atual);
-          const parcelasTotal = parcelasMatch ? parseInt(parcelasMatch[1]) : 1;
-          const parcelaValor = valorTotal / parcelasTotal;
-          
-          return {
-            id: item.id,
-            nome: item.nome,
-            tipo: (tipoMatch ? tipoMatch[1] : 'OUTRO') as 'EMPRESTIMO' | 'FINANCIAMENTO' | 'CARTAO_CREDITO' | 'OUTRO',
-            valor_total: valorTotal,
-            valor_pago: valorTotal - Math.abs(item.valor_atual), // Calcular baseado na diferença
-            valor_restante: Math.abs(item.valor_atual),
-            taxa_juros: taxaMatch ? parseFloat(taxaMatch[1]) : 0,
-            data_inicio: item.data_aquisicao || new Date().toISOString().split('T')[0],
-            data_vencimento: vencimentoMatch ? vencimentoMatch[1] : item.data_aquisicao || new Date().toISOString().split('T')[0],
-            parcela_valor: parcelaValor,
-            parcelas_total: parcelasTotal,
-            parcelas_pagas: Math.floor((valorTotal - Math.abs(item.valor_atual)) / parcelaValor),
-            status: Math.abs(item.valor_atual) > 0 ? 'ATIVA' : 'QUITADA',
-            observacoes: descricao.replace(/DIVIDA:\w+\s*-\s*Taxa:\s*[\d.]+%\s*-\s*Parcelas:\s*\d+\s*-\s*Vencimento:\s*[\d-]+\s*-\s*/, '').trim(),
-            created_at: item.created_at || new Date().toISOString()
-          } as Divida;
-        });
-
+      const dividasData = await DatabaseService.getDividas();
       setDividas(dividasData);
     } catch (error) {
       console.error('Erro ao carregar dívidas:', error);
@@ -95,47 +65,73 @@ export function GestaoDividas() {
     }
   };
 
+  const handleFieldChange = (field: keyof DividaFormData, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    const error = validateDividaField(field, value, { ...formData, [field]: value });
+    setFormErrors(prev => ({ ...prev, [field]: error }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    const { isValid, errors } = validateDividaForm(formData);
+    setFormErrors(errors);
+    if (!isValid) {
+      const firstErrorKey = Object.keys(errors)[0];
+      if (firstErrorKey) {
+        const el = document.querySelector(`[name="${firstErrorKey}"]`) as HTMLElement;
+        if (el) el.focus();
+      }
+      return;
+    }
+    setIsSubmitting(true);
     try {
       setLoading(true);
-      // Parse the currency input to get numeric value
-      const valorTotal = typeof formData.valor_total === 'string' 
-        ? parseCurrencyInput(formData.valor_total) 
+      const valorTotal = typeof formData.valor_total === 'string'
+        ? parseCurrencyInput(formData.valor_total)
         : formData.valor_total;
-      
       const parcelasTotal = formData.parcelas_total;
       const parcelaValor = valorTotal / parcelasTotal;
-
       const dividaData = {
         nome: formData.nome,
-        tipo: 'OUTRO', // Usar 'OUTRO' que é permitido pela constraint do banco
-        valor_atual: -Math.abs(valorTotal), // Valor negativo para representar dívida
-        valor_compra: valorTotal,
-        data_aquisicao: formData.data_inicio,
-        descricao: `DIVIDA:${formData.tipo} - Taxa: ${formData.taxa_juros}% - Parcelas: ${parcelasTotal} - Vencimento: ${formData.data_vencimento} - ${formData.observacoes || ''}`,
-        ativo: true
+        tipo: formData.tipo,
+        valor_total: valorTotal,
+        valor_pago: 0, // Inicialmente 0
+        valor_restante: valorTotal, // Inicialmente igual ao total
+        taxa_juros: formData.taxa_juros,
+        data_inicio: formData.data_inicio,
+        data_vencimento: formData.data_vencimento,
+        parcela_valor: parcelaValor,
+        parcelas_total: parcelasTotal,
+        parcelas_pagas: 0, // Inicialmente 0
+        status: 'ATIVA',
+        observacoes: formData.observacoes || '',
       };
-
+      let id: string | null = null;
       if (editingDivida) {
-        await DatabaseService.updatePatrimonio(editingDivida, dividaData);
+        await DatabaseService.updateDivida(editingDivida, dividaData);
+        showToast('Dívida atualizada com sucesso!', 'success');
+        id = editingDivida;
       } else {
-        await DatabaseService.createPatrimonio(dividaData);
+        const nova = await DatabaseService.createDivida(dividaData);
+        showToast('Dívida criada com sucesso!', 'success');
+        id = nova.id;
       }
-
       await loadDividas();
       resetForm();
-      alert('Dívida salva com sucesso!');
+      if (id) {
+        setHighlightedId(id);
+        setTimeout(() => setHighlightedId(null), 2000);
+      }
     } catch (error) {
       console.error('Erro ao salvar dívida:', error);
       if (error instanceof Error && error.message === 'Usuário não autenticado') {
         await AuthService.signOut();
         return;
       }
-      alert('Erro ao salvar dívida');
+      showToast('Erro ao salvar dívida', 'error');
     } finally {
       setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -154,23 +150,27 @@ export function GestaoDividas() {
     setShowForm(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Tem certeza que deseja excluir esta dívida?')) {
-      try {
-        setLoading(true);
-        await DatabaseService.deleteDivida(id);
-        await loadDividas();
-        alert('Dívida excluída com sucesso!');
-      } catch (error) {
-        console.error('Erro ao excluir dívida:', error);
-        if (error instanceof Error && error.message === 'Usuário não autenticado') {
-          await AuthService.signOut();
-          return;
-        }
-        alert('Erro ao excluir dívida');
-      } finally {
-        setLoading(false);
+  const handleDelete = (id: string) => {
+    setConfirmDeleteId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!confirmDeleteId) return;
+    try {
+      setLoading(true);
+      await DatabaseService.deleteDivida(confirmDeleteId);
+      await loadDividas();
+      showToast('Dívida excluída com sucesso!', 'success');
+    } catch (error) {
+      console.error('Erro ao excluir dívida:', error);
+      if (error instanceof Error && error.message === 'Usuário não autenticado') {
+        await AuthService.signOut();
+        return;
       }
+      showToast('Erro ao excluir dívida', 'error');
+    } finally {
+      setLoading(false);
+      setConfirmDeleteId(null);
     }
   };
 
@@ -187,6 +187,74 @@ export function GestaoDividas() {
     });
     setShowForm(false);
     setEditingDivida(null);
+    setFormErrors({}); // Resetar erros ao fechar o formulário
+  };
+
+  const validateField = (field: string, value: any) => {
+    let error = '';
+    switch (field) {
+      case 'nome':
+        if (!value.trim()) error = 'Nome é obrigatório';
+        break;
+      case 'tipo':
+        if (!value) error = 'Tipo é obrigatório';
+        break;
+      case 'valor_total':
+        if (value <= 0) error = 'Valor total deve ser maior que zero';
+        break;
+      case 'taxa_juros':
+        if (value < 0) error = 'Taxa de juros não pode ser negativa';
+        break;
+      case 'parcelas_total':
+        if (value < 1) error = 'Deve ter pelo menos 1 parcela';
+        break;
+      case 'data_inicio':
+        if (!value) error = 'Data de início é obrigatória';
+        break;
+      case 'data_vencimento':
+        if (!value) error = 'Data de vencimento é obrigatória';
+        break;
+      default:
+        break;
+    }
+    setFormErrors(prev => ({ ...prev, [field]: error }));
+  };
+
+  const validateForm = () => {
+    let isValid = true;
+    const newErrors: { [key: string]: string } = {};
+
+    if (!formData.nome.trim()) {
+      newErrors.nome = 'Nome é obrigatório';
+      isValid = false;
+    }
+    if (!formData.tipo) {
+      newErrors.tipo = 'Tipo é obrigatório';
+      isValid = false;
+    }
+    if (formData.valor_total <= 0) {
+      newErrors.valor_total = 'Valor total deve ser maior que zero';
+      isValid = false;
+    }
+    if (formData.taxa_juros < 0) {
+      newErrors.taxa_juros = 'Taxa de juros não pode ser negativa';
+      isValid = false;
+    }
+    if (formData.parcelas_total < 1) {
+      newErrors.parcelas_total = 'Deve ter pelo menos 1 parcela';
+      isValid = false;
+    }
+    if (!formData.data_inicio) {
+      newErrors.data_inicio = 'Data de início é obrigatória';
+      isValid = false;
+    }
+    if (!formData.data_vencimento) {
+      newErrors.data_vencimento = 'Data de vencimento é obrigatória';
+      isValid = false;
+    }
+
+    setFormErrors(newErrors);
+    return isValid;
   };
 
   const resumoGeral = useMemo(() => {
@@ -229,22 +297,13 @@ export function GestaoDividas() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Gestão de Dívidas</h1>
-          <p className="text-gray-600 mt-2">Controle empréstimos, financiamentos e outras dívidas</p>
-        </div>
+    <PageTemplate
+      title="Gestão de Dívidas"
+      subtitle="Controle empréstimos, financiamentos e outras dívidas"
+      icon={TrendingDown}
+      loading={loading}
+      headerActions={
         <button
           onClick={() => setShowForm(true)}
           className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
@@ -252,7 +311,24 @@ export function GestaoDividas() {
           <Plus className="w-5 h-5" />
           <span>Nova Dívida</span>
         </button>
-      </div>
+      }
+      emptyState={
+        dividas.length === 0 ? {
+          icon: TrendingDown,
+          title: "Nenhuma dívida encontrada",
+          description: "Comece registrando suas dívidas para controlar seus compromissos financeiros.",
+          action: (
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Nova Dívida
+            </button>
+          )
+        } : undefined
+      }
+    >
 
       {/* Resumo Geral */}
       <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl border border-red-200 p-6">
@@ -289,118 +365,143 @@ export function GestaoDividas() {
             
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="nome" className="block text-sm font-medium text-gray-700 mb-1">
                   Nome da Dívida *
                 </label>
                 <input
                   type="text"
+                  name="nome"
                   value={formData.nome}
-                  onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Ex: Financiamento do carro"
-                  required
+                  onChange={e => handleFieldChange('nome', e.target.value)}
+                  onBlur={e => handleFieldChange('nome', e.target.value)}
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white ${formErrors.nome ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'}`}
+                  placeholder="Ex: Empréstimo Banco, Cartão de Crédito..."
                 />
+                {formErrors.nome && <span className="text-red-500 text-xs mt-1 block">{formErrors.nome}</span>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="tipo" className="block text-sm font-medium text-gray-700 mb-1">
                   Tipo *
                 </label>
                 <select
+                  name="tipo"
                   value={formData.tipo}
-                  onChange={(e) => setFormData(prev => ({ ...prev, tipo: e.target.value as any }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  onChange={e => handleFieldChange('tipo', e.target.value as 'EMPRESTIMO' | 'FINANCIAMENTO' | 'CARTAO_CREDITO' | 'OUTRO')}
+                  onBlur={e => handleFieldChange('tipo', e.target.value as 'EMPRESTIMO' | 'FINANCIAMENTO' | 'CARTAO_CREDITO' | 'OUTRO')}
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white ${formErrors.tipo ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'}`}
                 >
                   <option value="EMPRESTIMO">Empréstimo</option>
                   <option value="FINANCIAMENTO">Financiamento</option>
                   <option value="CARTAO_CREDITO">Cartão de Crédito</option>
                   <option value="OUTRO">Outro</option>
                 </select>
+                {formErrors.tipo && <span className="text-red-500 text-xs mt-1 block">{formErrors.tipo}</span>}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="valor_total" className="block text-sm font-medium text-gray-700 mb-1">
                     Valor Total *
                   </label>
                   <CurrencyInput
+                    name="valor_total"
                     value={formData.valor_total}
-                    onChange={(value) => setFormData(prev => ({ ...prev, valor_total: value }))}
-                    placeholder="R$ 0,00"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={value => handleFieldChange('valor_total', value)}
+                    onBlur={() => handleFieldChange('valor_total', formData.valor_total)}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white ${formErrors.valor_total ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'}`}
+                    error={Boolean(formErrors.valor_total)}
                     required
+                    placeholder="R$ 0,00"
                   />
+                  {formErrors.valor_total && <span className="text-red-500 text-xs mt-1 block">{formErrors.valor_total}</span>}
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="taxa_juros" className="block text-sm font-medium text-gray-700 mb-1">
                     Taxa de Juros (% a.a.)
                   </label>
                   <input
                     type="number"
-                    step="0.01"
+                    name="taxa_juros"
                     value={formData.taxa_juros}
-                    onChange={(e) => setFormData(prev => ({ ...prev, taxa_juros: parseFloat(e.target.value) || 0 }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="0,00"
+                    onChange={e => handleFieldChange('taxa_juros', Number(e.target.value))}
+                    onBlur={e => handleFieldChange('taxa_juros', Number(e.target.value))}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white ${formErrors.taxa_juros ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'}`}
+                    min={0}
+                    step={0.01}
+                    required
+                    placeholder="0%"
                   />
+                  {formErrors.taxa_juros && <span className="text-red-500 text-xs mt-1 block">{formErrors.taxa_juros}</span>}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="data_inicio" className="block text-sm font-medium text-gray-700 mb-1">
                     Data Início *
                   </label>
                   <input
                     type="date"
+                    name="data_inicio"
                     value={formData.data_inicio}
-                    onChange={(e) => setFormData(prev => ({ ...prev, data_inicio: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={e => handleFieldChange('data_inicio', e.target.value)}
+                    onBlur={e => handleFieldChange('data_inicio', e.target.value)}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white ${formErrors.data_inicio ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'}`}
                     required
                   />
+                  {formErrors.data_inicio && <span className="text-red-500 text-xs mt-1 block">{formErrors.data_inicio}</span>}
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="data_vencimento" className="block text-sm font-medium text-gray-700 mb-1">
                     Data Vencimento *
                   </label>
                   <input
                     type="date"
+                    name="data_vencimento"
                     value={formData.data_vencimento}
-                    onChange={(e) => setFormData(prev => ({ ...prev, data_vencimento: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={e => handleFieldChange('data_vencimento', e.target.value)}
+                    onBlur={e => handleFieldChange('data_vencimento', e.target.value)}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white ${formErrors.data_vencimento ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'}`}
                     required
                   />
+                  {formErrors.data_vencimento && <span className="text-red-500 text-xs mt-1 block">{formErrors.data_vencimento}</span>}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="parcelas_total" className="block text-sm font-medium text-gray-700 mb-1">
                   Total de Parcelas *
                 </label>
                 <input
                   type="number"
+                  name="parcelas_total"
                   value={formData.parcelas_total}
-                  onChange={(e) => setFormData(prev => ({ ...prev, parcelas_total: parseInt(e.target.value) || 1 }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="12"
-                  min="1"
+                  onChange={e => handleFieldChange('parcelas_total', Number(e.target.value))}
+                  onBlur={e => handleFieldChange('parcelas_total', Number(e.target.value))}
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white ${formErrors.parcelas_total ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'}`}
+                  min={1}
                   required
+                  placeholder="1"
                 />
+                {formErrors.parcelas_total && <span className="text-red-500 text-xs mt-1 block">{formErrors.parcelas_total}</span>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="observacoes" className="block text-sm font-medium text-gray-700 mb-1">
                   Observações
                 </label>
                 <textarea
+                  name="observacoes"
                   value={formData.observacoes}
                   onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Informações adicionais..."
                   rows={3}
                 />
+                {formErrors.observacoes && <span className="text-red-500 text-xs mt-1 block">{formErrors.observacoes}</span>}
               </div>
 
               <div className="flex space-x-3 pt-4">
@@ -408,15 +509,21 @@ export function GestaoDividas() {
                   type="button"
                   onClick={resetForm}
                   className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  aria-label="Cancelar"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+                  disabled={isSubmitting}
+                  aria-label="Salvar dívida"
                 >
-                  {loading ? 'Salvando...' : (editingDivida ? 'Salvar' : 'Criar')}
+                  {isSubmitting ? (
+                    <span className="flex items-center"><span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></span>Salvando...</span>
+                  ) : (
+                    editingDivida ? 'Salvar' : 'Criar'
+                  )}
                 </button>
               </div>
             </form>
@@ -431,7 +538,10 @@ export function GestaoDividas() {
           const progressoParcelas = divida.parcelas_total > 0 ? (divida.parcelas_pagas / divida.parcelas_total) * 100 : 0;
           
           return (
-            <div key={divida.id} className={`bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition-all duration-200 group ${getStatusColor(divida.status)}`}>
+            <div
+              key={divida.id}
+              className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm border p-6 hover:shadow-md transition-all duration-200 group ${getStatusColor(divida.status)} ${highlightedId === divida.id ? 'ring-2 ring-green-400 bg-green-50 dark:bg-green-900 transition-all duration-500' : ''}`}
+            >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-3">
                   <div className="w-12 h-12 bg-red-50 rounded-lg flex items-center justify-center">
@@ -450,14 +560,16 @@ export function GestaoDividas() {
                   <button 
                     onClick={() => handleEdit(divida)}
                     className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                    aria-label="Editar dívida"
                   >
                     <Edit3 className="w-4 h-4" />
                   </button>
                   <button 
                     onClick={() => handleDelete(divida.id)}
-                    className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                    className="p-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600"
+                    aria-label="Excluir dívida"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-5 h-5" />
                   </button>
                 </div>
               </div>
@@ -523,7 +635,7 @@ export function GestaoDividas() {
                 </div>
 
                 {divida.observacoes && (
-                  <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                  <div className="text-xs text-gray-500 bg-gray-50 dark:bg-gray-900 p-2 rounded">
                     {divida.observacoes}
                   </div>
                 )}
@@ -533,13 +645,130 @@ export function GestaoDividas() {
         })}
       </div>
 
-      {dividas.length === 0 && (
-        <div className="text-center text-gray-500 py-12">
-          <CreditCard className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-          <p className="text-lg font-medium">Nenhuma dívida cadastrada</p>
-          <p className="text-sm mt-1">Adicione empréstimos e financiamentos para controlar melhor suas finanças!</p>
-        </div>
-      )}
-    </div>
+      {/* Lista de Dívidas */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {dividas.map((divida) => {
+          const progressoPagamento = divida.valor_total > 0 ? (divida.valor_pago / divida.valor_total) * 100 : 0;
+          const progressoParcelas = divida.parcelas_total > 0 ? (divida.parcelas_pagas / divida.parcelas_total) * 100 : 0;
+          
+          return (
+            <div
+              key={divida.id}
+              className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm border p-6 hover:shadow-md transition-all duration-200 group ${getStatusColor(divida.status)} ${highlightedId === divida.id ? 'ring-2 ring-green-400 bg-green-50 dark:bg-green-900 transition-all duration-500' : ''}`}
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-red-50 rounded-lg flex items-center justify-center">
+                    <TrendingDown className="w-6 h-6 text-red-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white">{divida.nome}</h3>
+                    <div className="flex items-center space-x-1">
+                      {getStatusIcon(divida.status)}
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-300">{divida.tipo}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="opacity-0 group-hover:opacity-100 flex items-center space-x-1 transition-opacity">
+                  <button 
+                    onClick={() => handleEdit(divida)}
+                    className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                    aria-label="Editar dívida"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(divida.id)}
+                    className="p-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600"
+                    aria-label="Excluir dívida"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {/* Progresso de Pagamento */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-gray-600 dark:text-gray-300">Progresso de Pagamento:</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{progressoPagamento.toFixed(1)}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div 
+                      className="h-2 rounded-full bg-green-500 transition-all duration-300"
+                      style={{ width: `${Math.min(progressoPagamento, 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Informações Financeiras */}
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-300">Valor Total</p>
+                    <p className="font-semibold text-gray-900 dark:text-white">{formatCurrency(divida.valor_total)}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-300">Valor Restante</p>
+                    <p className="font-semibold text-red-600">{formatCurrency(divida.valor_restante)}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-300">Parcela Mensal</p>
+                    <p className="font-semibold text-gray-900 dark:text-white">{formatCurrency(divida.parcela_valor)}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-300">Taxa de Juros</p>
+                    <p className="font-semibold text-gray-900 dark:text-white">{divida.taxa_juros.toFixed(2)}% a.a.</p>
+                  </div>
+                </div>
+
+                {/* Progresso de Parcelas */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-gray-600 dark:text-gray-300">Parcelas:</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{divida.parcelas_pagas}/{divida.parcelas_total}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div 
+                      className="h-2 rounded-full bg-blue-500 transition-all duration-300"
+                      style={{ width: `${Math.min(progressoParcelas, 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Datas */}
+                <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                    <div className="flex items-center space-x-1">
+                      <Calendar className="w-4 h-4" />
+                      <span>Início: {formatDate(divida.data_inicio)}</span>
+                    </div>
+                    <span>Fim: {formatDate(divida.data_vencimento)}</span>
+                  </div>
+                </div>
+
+                {divida.observacoes && (
+                  <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 p-2 rounded">
+                    {divida.observacoes}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Modal de confirmação de exclusão */}
+      <ConfirmModal
+        open={!!confirmDeleteId}
+        title="Excluir Dívida"
+        message="Tem certeza que deseja excluir esta dívida? Esta ação não pode ser desfeita."
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
+    </PageTemplate>
   );
 }

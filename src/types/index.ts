@@ -21,68 +21,53 @@ export interface UserProfile {
 
 export interface Categoria {
   id: string;
-  user_id: string;
   nome: string;
-  tipo: 'RECEITA' | 'DESPESA';
   cor: string;
-  icone: string;
-  descricao: string | null;
-  ativa: boolean;
-  ordem: number;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface Conta {
   id: string;
-  user_id: string;
   nome: string;
   tipo: 'CORRENTE' | 'POUPANCA' | 'INVESTIMENTO' | 'CARTEIRA';
   saldo_inicial: number;
-  saldo_atual: number;
-  limite_credito: number | null;
-  valor_investido: number | null;
-  banco: string | null;
-  agencia: string | null;
-  conta: string | null;
-  ativa: boolean;
-  incluir_relatorios: boolean;
+  saldo_atual?: number;
+  limite_credito?: number | null;
+  valor_investido?: number | null;
+  banco?: string | null;
+  agencia?: string | null;
+  conta?: string | null;
   cor: string;
-  created_at: string;
-  updated_at: string;
+}
+
+export interface Parcela {
+  id: string;
+  parcela_atual: number;
+  total_parcelas: number;
+  data: string;
+  valor: number;
+  status: 'PENDENTE' | 'CONFIRMADO' | 'CANCELADO';
 }
 
 export interface Lancamento {
   id: string;
-  user_id: string;
-  conta_id: string;
-  categoria_id: string;
   descricao: string;
   valor: number;
   data: string;
-  tipo: 'RECEITA' | 'DESPESA';
+  tipo: 'RECEITA' | 'DESPESA' | 'grupo_parcelas';
+  conta_id: string;
+  categoria_id: string;
+  observacoes?: string;
   status: 'PENDENTE' | 'CONFIRMADO' | 'CANCELADO';
-  observacoes: string | null;
-  tags: string[] | null;
-  compra_parcelada_id: string | null;
-  parcela_atual: number | null;
-  total_parcelas: number | null;
-  transferencia_id: string | null;
-  conta_destino_id: string | null;
-  recorrente: boolean;
-  frequencia: string | null;
-  proximo_vencimento: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  local: string | null;
-  antecedencia_notificacao: number | null;
-  cartao_credito_usado: string | null;
-  forma_pagamento: string | null;
-  created_at: string;
-  updated_at: string;
-  categoria?: Categoria;
-  conta?: Conta;
-  conta_destino?: Conta;
+  antecedencia_notificacao?: number;
+  cartao_credito_usado?: string;
+  isParcelado?: boolean;
+  numeroParcelas?: number;
+  forma_pagamento?: 'DEBITO' | 'CREDITO';
+  tipo_transacao?: 'RECEITA' | 'DESPESA';
+  total_parcelas?: number;
+  parcela_atual?: number;
+  parcelas?: Parcela[];
+  compra_parcelada_id?: string;
 }
 
 export interface MetaFinanceira {

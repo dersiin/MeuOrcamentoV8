@@ -102,44 +102,12 @@ export class DatabaseService {
   static async getContas(): Promise<Conta[]> {
     const { data, error } = await supabase
       .from('contas')
-      .select(`
-        *,
-        saldo_real:saldo_atual,
-        receitas:lancamentos!lancamentos_conta_id_fkey(valor).tipo.eq.RECEITA.status.eq.CONFIRMADO,
-        despesas_debito:lancamentos!lancamentos_conta_id_fkey(valor).tipo.eq.DESPESA.status.eq.CONFIRMADO.forma_pagamento.in.(DEBITO,PIX,DINHEIRO),
-        fatura_cartao:lancamentos!lancamentos_conta_id_fkey(valor).tipo.eq.DESPESA.status.eq.CONFIRMADO.forma_pagamento.eq.CREDITO
-      `)
+      .select('*')
       .eq('ativa', true)
       .order('nome', { ascending: true });
 
     if (error) throw error;
-    
-    // Processar dados para calcular valores corretos
-    const contasProcessadas = (data || []).map(conta => {
-      const receitas = Array.isArray(conta.receitas) 
-        ? conta.receitas.reduce((sum: number, r: any) => sum + (r.valor || 0), 0)
-        : 0;
-      
-      const despesasDebito = Array.isArray(conta.despesas_debito)
-        ? conta.despesas_debito.reduce((sum: number, d: any) => sum + (d.valor || 0), 0)
-        : 0;
-      
-      const faturaCartao = Array.isArray(conta.fatura_cartao)
-        ? conta.fatura_cartao.reduce((sum: number, f: any) => sum + (f.valor || 0), 0)
-        : 0;
-      
-      return {
-        ...conta,
-        saldo_real: conta.saldo_atual || 0,
-        receitas,
-        despesas_debito: despesasDebito,
-        fatura_cartao: faturaCartao,
-        limite_restante: conta.limite_credito ? (conta.limite_credito - faturaCartao) : null,
-        utilizacao_percentual: conta.limite_credito ? (faturaCartao / conta.limite_credito) * 100 : null
-      };
-    });
-    
-    return contasProcessadas;
+    return data || [];
   }
 
   static async createConta(conta: Tables['contas']['Insert']): Promise<Conta> {
@@ -257,21 +225,18 @@ export class DatabaseService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Usuário não autenticado');
 
-    // Garantir que forma_pagamento esteja definida
-    const lancamentoData = {
-      ...lancamento,
-      user_id: user.id,
-      forma_pagamento: lancamento.forma_pagamento || 'DEBITO',
-      status: lancamento.status || 'CONFIRMADO'
-    };
-
+    // Se é uma despesa no crédito, não alterar o saldo da conta
+    // Se é débito ou receita, o trigger do banco vai atualizar o saldo automaticamente
     const { data, error } = await supabase
       .from('lancamentos')
-      .insert(lancamentoData)
+      .insert({ ...lancamento, user_id: user.id })
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Erro ao criar lançamento no Supabase:', error, lancamento);
+      throw error;
+    }
     return data;
   }
 
@@ -699,7 +664,7 @@ export class DatabaseService {
       `)
       .eq('conta_id', contaId)
       .eq('tipo', 'DESPESA')
-      .in('forma_pagamento', ['CREDITO'])
+      .eq('forma_pagamento', 'CREDITO')
       .gte('data', dataInicio)
       .lte('data', dataFim)
       .order('data', { ascending: false });

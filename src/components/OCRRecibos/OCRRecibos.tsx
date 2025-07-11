@@ -3,6 +3,7 @@ import { Camera, Upload, Scan, CheckCircle, X, Eye } from 'lucide-react';
 import { DatabaseService } from '../../lib/database';
 import { AuthService } from '../../lib/auth';
 import { formatCurrency } from '../../lib/utils';
+import { PageTemplate } from '../Common/PageTemplate';
 
 interface ReciboParsed {
   descricao: string;
@@ -202,26 +203,31 @@ export function OCRRecibos() {
     return 'text-red-600 bg-red-50';
   };
 
-  return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">OCR de Recibos</h1>
-        <p className="text-gray-600 mt-2">Digitalize recibos automaticamente usando a câmera ou upload de imagens</p>
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
+    );
+  }
 
+  return (
+    <PageTemplate
+      title="OCR de Recibos"
+      subtitle="Digitalize e importe recibos automaticamente para seus lançamentos"
+    >
       {/* Seleção de Conta */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Configurações</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Configurações</h2>
         
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Conta de Destino *
           </label>
           <select
             value={contaSelecionada}
             onChange={(e) => setContaSelecionada(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white bg-white dark:bg-gray-900"
           >
             <option value="">Selecione uma conta</option>
             {contas.map(conta => (
@@ -234,8 +240,8 @@ export function OCRRecibos() {
       </div>
 
       {/* Opções de Captura */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Capturar Recibo</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Capturar Recibo</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Câmera */}
@@ -275,10 +281,10 @@ export function OCRRecibos() {
       {/* Câmera Modal */}
       {showCamera && (
         <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full">
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-gray-900">Capturar Recibo</h2>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Capturar Recibo</h2>
                 <button
                   onClick={stopCamera}
                   className="text-gray-400 hover:text-gray-600"
@@ -319,22 +325,9 @@ export function OCRRecibos() {
       {/* Canvas oculto para captura */}
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Loading */}
-      {loading && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center justify-center space-x-3">
-            <Scan className="w-6 h-6 text-blue-600 animate-pulse" />
-            <span className="text-lg font-medium text-gray-900">Processando imagem...</span>
-          </div>
-          <div className="mt-4 bg-gray-200 rounded-full h-2">
-            <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: '60%' }}></div>
-          </div>
-        </div>
-      )}
-
       {/* Preview dos Recibos */}
       {showPreview && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-gray-900">
               Recibos Processados ({recibosParsed.length})
@@ -455,6 +448,6 @@ export function OCRRecibos() {
           </div>
         </div>
       </div>
-    </div>
+    </PageTemplate>
   );
 }

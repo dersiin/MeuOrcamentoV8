@@ -32,12 +32,12 @@ export function NotificationPanel({ notificacoes, onClose, onRefresh }: Notifica
   };
 
   return (
-    <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
+    <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-t-xl">
         <div className="flex items-center space-x-2">
-          <Bell className="w-5 h-5 text-gray-600" />
-          <h3 className="font-semibold text-gray-900">Notificações</h3>
+          <Bell className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100">Notificações</h3>
           {notificacoes.length > 0 && (
             <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
               {notificacoes.length}
@@ -47,14 +47,14 @@ export function NotificationPanel({ notificacoes, onClose, onRefresh }: Notifica
         <div className="flex items-center space-x-1">
           <button
             onClick={onRefresh}
-            className="p-1 text-gray-400 hover:text-gray-600 rounded transition-colors"
+            className="p-1 text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-200 rounded transition-colors"
             title="Atualizar"
           >
             <RefreshCw className="w-4 h-4" />
           </button>
           <button
             onClick={onClose}
-            className="p-1 text-gray-400 hover:text-gray-600 rounded transition-colors"
+            className="p-1 text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-200 rounded transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -68,26 +68,26 @@ export function NotificationPanel({ notificacoes, onClose, onRefresh }: Notifica
             {notificacoes.map((notificacao) => (
               <div
                 key={notificacao.id}
-                className={`p-3 rounded-lg border ${getNotificationColor(notificacao.tipo)}`}
+                className={`p-3 rounded-lg border ${getNotificationColor(notificacao.tipo)} dark:border-gray-700 dark:bg-gray-900`}
               >
                 <div className="flex items-start space-x-3">
                   <div className="flex-shrink-0 mt-0.5">
                     {getNotificationIcon(notificacao.tipo)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                       {notificacao.descricao}
                     </p>
                     <div className="flex items-center space-x-2 mt-1">
-                      <Calendar className="w-3 h-3 text-gray-500" />
-                      <span className="text-xs text-gray-600">
+                      <Calendar className="w-3 h-3 text-gray-500 dark:text-gray-400" />
+                      <span className="text-xs text-gray-600 dark:text-gray-300">
                         {formatDate(notificacao.data)}
                       </span>
                     </div>
-                    <p className="text-sm font-semibold text-gray-900 mt-1">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mt-1">
                       {formatCurrency(notificacao.valor)}
                     </p>
-                    <p className="text-xs text-gray-600 mt-1">
+                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
                       Conta: {notificacao.conta?.nome}
                     </p>
                   </div>
@@ -96,17 +96,17 @@ export function NotificationPanel({ notificacoes, onClose, onRefresh }: Notifica
             ))}
           </div>
         ) : (
-          <div className="p-8 text-center">
-            <Bell className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-            <p className="text-sm text-gray-500">Nenhuma notificação pendente</p>
+          <div className="p-8 text-center bg-white dark:bg-gray-800 rounded-b-xl">
+            <Bell className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+            <p className="text-sm text-gray-500 dark:text-gray-300">Nenhuma notificação pendente</p>
           </div>
         )}
       </div>
 
       {/* Footer */}
       {notificacoes.length > 0 && (
-        <div className="p-3 border-t border-gray-200 bg-gray-50 rounded-b-xl">
-          <p className="text-xs text-gray-600 text-center">
+        <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-b-xl">
+          <p className="text-xs text-gray-600 dark:text-gray-300 text-center">
             {notificacoes.length} vencimento{notificacoes.length > 1 ? 's' : ''} próximo{notificacoes.length > 1 ? 's' : ''}
           </p>
         </div>

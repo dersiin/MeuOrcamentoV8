@@ -3,6 +3,7 @@ import { Upload, FileText, CheckCircle, AlertCircle, Download, X, Eye } from 'lu
 import { DatabaseService } from '../../lib/database';
 import { AuthService } from '../../lib/auth';
 import { formatCurrency, formatDate } from '../../lib/utils';
+import { PageTemplate } from '../Common/PageTemplate';
 
 interface TransacaoImportada {
   id: string;
@@ -257,27 +258,32 @@ export function ConciliacaoBancaria() {
     }
   };
 
-  return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Conciliação Bancária</h1>
-        <p className="text-gray-600 mt-2">Importe extratos bancários (CSV/OFX) e concilie automaticamente</p>
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
+    );
+  }
 
+  return (
+    <PageTemplate
+      title="Conciliação Bancária"
+      subtitle="Importe extratos bancários e concilie suas transações automaticamente"
+    >
       {/* Upload Area */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Importar Extrato</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 p-6">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Importar Extrato</h2>
         
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Conta de Destino *
             </label>
             <select
               value={contaSelecionada}
               onChange={(e) => setContaSelecionada(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white bg-white dark:bg-gray-900"
             >
               <option value="">Selecione uma conta</option>
               {contas.map(conta => (
@@ -324,7 +330,7 @@ export function ConciliacaoBancaria() {
 
       {/* Preview das Transações */}
       {showPreview && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-gray-900">
               Preview das Transações ({transacoesImportadas.length})
@@ -341,19 +347,19 @@ export function ConciliacaoBancaria() {
 
           {/* Resumo */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-green-600">
                 {transacoesImportadas.filter(t => t.status === 'NOVA').length}
               </div>
               <div className="text-sm text-green-700">Novas Transações</div>
             </div>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-yellow-600">
                 {transacoesImportadas.filter(t => t.status === 'DUPLICADA').length}
               </div>
               <div className="text-sm text-yellow-700">Possíveis Duplicatas</div>
             </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-blue-600">
                 {formatCurrency(transacoesImportadas.reduce((sum, t) => sum + (t.tipo === 'RECEITA' ? t.valor : -t.valor), 0))}
               </div>
@@ -453,6 +459,6 @@ export function ConciliacaoBancaria() {
           </div>
         </div>
       </div>
-    </div>
+    </PageTemplate>
   );
 }

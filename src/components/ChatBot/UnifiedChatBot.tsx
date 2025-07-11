@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Bot, User, Plus, DollarSign, Target, CreditCard, Zap, Sparkles, Brain } from 'lucide-react';
 import { AzureOpenAIService } from '../../lib/azureOpenAI';
 import { DatabaseService } from '../../lib/database';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, validateChatBotCommand } from '../../lib/utils';
 
 interface Message {
   id: string;
@@ -58,182 +58,22 @@ export function UnifiedChatBot() {
   };
 
   const parseCommand = (message: string): { type: string; data?: any; message?: string } | null => {
-    const msg = message.toLowerCase();
-
-    // Padrões para criar lançamento
-    const lancamentoPatterns = [
-      /gastei.*?r?\$?\s*(\d+(?:[.,]\d{2})?)\s*.*?com\s*(.+)/i,
-      /criar.*lançamento.*?r?\$?\s*(\d+(?:[.,]\d{2})?)\s*.*?para\s*(.+)/i,
-      /adicionar.*gasto.*?r?\$?\s*(\d+(?:[.,]\d{2})?)\s*.*?em\s*(.+)/i,
-      /registrar.*despesa.*?r?\$?\s*(\d+(?:[.,]\d{2})?)\s*.*?categoria\s*(.+)/i
-    ];
-
-    for (const pattern of lancamentoPatterns) {
-      const match = message.match(pattern);
-      if (match) {
-        if (!contas || contas.length === 0) {
-          return {
-            type: 'error',
-            message: 'Você precisa ter pelo menos uma conta cadastrada para criar um lançamento. Crie uma conta primeiro dizendo: "Criar conta corrente Banco do Brasil".'
-          };
-        }
-
-        if (!categorias || categorias.length === 0) {
-          return {
-            type: 'error',
-            message: 'Você precisa ter pelo menos uma categoria cadastrada para criar um lançamento. As categorias são criadas automaticamente quando você cria seu perfil. Tente recarregar a página ou criar uma categoria manualmente.'
-          };
-        }
-
-        const valorStr = match[1].replace(',', '.');
-        const valor = parseFloat(valorStr);
-        
-        if (isNaN(valor) || valor <= 0) {
-          return {
-            type: 'error',
-            message: 'O valor do lançamento deve ser um número positivo.'
-          };
-        }
-
-        const descricao = match[2].trim();
-        
-        let categoria = categorias.find(c => 
-          c.nome.toLowerCase().includes(descricao.toLowerCase()) ||
-          descricao.toLowerCase().includes(c.nome.toLowerCase())
-        );
-
-        if (!categoria) {
-          categoria = categorias.find(c => c.tipo === 'DESPESA');
-        }
-
-        if (!categoria) {
-          categoria = categorias[0];
-        }
-
-        if (!categoria || !categoria.id) {
-          return {
-            type: 'error',
-            message: 'Não foi possível encontrar uma categoria válida. Verifique se você possui categorias cadastradas.'
-          };
-        }
-
-        const contaAtiva = contas.find(c => c.ativa !== false) || contas[0];
-
-        if (!contaAtiva || !contaAtiva.id) {
-          return {
-            type: 'error',
-            message: 'Não foi possível encontrar uma conta válida. Verifique se você possui contas cadastradas.'
-          };
-        }
-
-        return {
-          type: 'create_lancamento',
-          data: {
-            descricao: `Gasto com ${descricao}`,
-            valor,
-            tipo: 'DESPESA',
-            categoria_id: categoria.id,
-            conta_id: contaAtiva.id,
-            data: new Date().toISOString().split('T')[0]
-          }
-        };
+    const result = validateChatBotCommand(message, categorias, contas);
+    
+    if (!result.isValid) {
+      return result.error ? { type: 'error', message: result.error } : null;
+    }
+    
+    if (result.data) {
+      if (result.data.descricao) {
+        return { type: 'create_lancamento', data: result.data };
+      } else if (result.data.nome && result.data.tipo === 'ECONOMIA') {
+        return { type: 'create_meta', data: result.data };
+      } else if (result.data.nome && result.data.tipo) {
+        return { type: 'create_conta', data: result.data };
       }
     }
-
-    // Padrões para criar meta
-    const metaPatterns = [
-      /criar.*meta.*?r?\$?\s*(\d+(?:[.,]\d{2})?)/i,
-      /definir.*objetivo.*?r?\$?\s*(\d+(?:[.,]\d{2})?)/i,
-      /meta.*economia.*?r?\$?\s*(\d+(?:[.,]\d{2})?)/i
-    ];
-
-    for (const pattern of metaPatterns) {
-      const match = message.match(pattern);
-      if (match) {
-        const valorStr = match[1].replace(',', '.');
-        const valor = parseFloat(valorStr);
-        
-        if (isNaN(valor) || valor <= 0) {
-          return {
-            type: 'error',
-            message: 'O valor da meta deve ser um número positivo.'
-          };
-        }
-        
-        return {
-          type: 'create_meta',
-          data: {
-            nome: 'Meta de Economia',
-            tipo: 'ECONOMIA',
-            valor_meta: valor,
-            data_inicio: new Date().toISOString().split('T')[0],
-            data_fim: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-          }
-        };
-      }
-    }
-
-    // Padrões melhorados para criar conta
-    const contaPatterns = [
-      /criar.*conta\s+(corrente|poupança|poupanca|investimento|carteira|cartão|cartao)(?:\s+(.+))?/i,
-      /adicionar.*conta\s+(corrente|poupança|poupanca|investimento|carteira|cartão|cartao)(?:\s+(.+))?/i,
-      /nova.*conta\s+(corrente|poupança|poupanca|investimento|carteira|cartão|cartao)(?:\s+(.+))?/i,
-      /criar.*conta\s+(.+)/i
-    ];
-
-    for (const pattern of contaPatterns) {
-      const match = message.match(pattern);
-      if (match) {
-        let tipo = 'CORRENTE';
-        let nome = '';
-        
-        if (match[1]) {
-          const tipoStr = match[1].toLowerCase();
-          switch (tipoStr) {
-            case 'poupança':
-            case 'poupanca':
-              tipo = 'POUPANCA';
-              nome = match[2] ? `Poupança ${match[2]}` : 'Poupança';
-              break;
-            case 'investimento':
-              tipo = 'INVESTIMENTO';
-              nome = match[2] ? `Investimento ${match[2]}` : 'Investimento';
-              break;
-            case 'carteira':
-              tipo = 'CARTEIRA';
-              nome = match[2] ? `Carteira ${match[2]}` : 'Carteira';
-              break;
-            case 'cartão':
-            case 'cartao':
-              tipo = 'CARTAO_CREDITO';
-              nome = match[2] ? `Cartão ${match[2]}` : 'Cartão de Crédito';
-              break;
-            default:
-              tipo = 'CORRENTE';
-              nome = match[2] ? `Conta Corrente ${match[2]}` : 'Conta Corrente';
-          }
-        } else {
-          // Caso genérico
-          nome = match[1].trim();
-          if (nome.length < 3) {
-            return {
-              type: 'error',
-              message: 'O nome da conta deve ter pelo menos 3 caracteres. Exemplo: "Criar conta poupança Banco do Brasil"'
-            };
-          }
-        }
-        
-        return {
-          type: 'create_conta',
-          data: {
-            nome,
-            tipo,
-            saldo_inicial: 0
-          }
-        };
-      }
-    }
-
+    
     return null;
   };
 

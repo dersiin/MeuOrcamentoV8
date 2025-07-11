@@ -9,6 +9,8 @@ interface CurrencyInputProps {
   disabled?: boolean;
   error?: boolean;
   required?: boolean;
+  id?: string;
+  name?: string;
 }
 
 export function CurrencyInput({ 
@@ -18,7 +20,9 @@ export function CurrencyInput({
   className = "",
   disabled = false,
   error = false,
-  required = false
+  required = false,
+  id,
+  name
 }: CurrencyInputProps) {
   const [displayValue, setDisplayValue] = useState('');
 
@@ -33,12 +37,21 @@ export function CurrencyInput({
   }, [value]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value;
-    const formattedValue = formatCurrencyInput(rawValue);
-    const numericValue = parseCurrencyInput(formattedValue);
-    
-    setDisplayValue(formattedValue);
-    onChange(numericValue);
+    // Remove tudo que não é dígito
+    let rawValue = e.target.value.replace(/\D/g, '');
+    // Se vazio, mostra vazio
+    if (!rawValue) {
+      setDisplayValue('');
+      onChange(0);
+      return;
+    }
+    // Converte para número (centavos)
+    let numberValue = parseInt(rawValue, 10);
+    // Divide por 100 para obter reais
+    let reais = numberValue / 100;
+    // Formata para moeda brasileira
+    setDisplayValue(formatCurrencyInput(reais));
+    onChange(reais);
   };
 
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -54,7 +67,9 @@ export function CurrencyInput({
       placeholder={placeholder}
       disabled={disabled}
       required={required}
-      className={`${className} ${error ? 'border-red-300' : 'border-gray-300'}`}
+      id={id}
+      name={name}
+      className={`${className || ''} bg-white dark:bg-gray-900 text-gray-900 dark:text-white border ${error ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'}`}
     />
   );
 }

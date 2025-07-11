@@ -1,11 +1,16 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit3, Trash2, Calendar, DollarSign, Search, Filter, X, CheckCircle, Clock, XCircle, CreditCard, ChevronDown, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Plus, Edit3, Trash2, Calendar, DollarSign, Search, Filter, X, CheckCircle, Clock, XCircle, CreditCard, ChevronDown, ChevronRight, Edit, Trash } from 'lucide-react';
 import { DatabaseService } from '../lib/database';
-import { AuthService } from '../lib/auth';
-import { formatCurrency, formatDate, createParcelaLancamentos, parseCurrencyInput } from '../lib/utils';
+import { AuthService, AuthUser } from '../lib/auth';
+import { formatCurrency, formatDate, createParcelaLancamentos, parseCurrencyInput, validateLancamentoField, validateLancamentoForm, LancamentoFormData } from '../lib/utils';
 import { CurrencyInput } from './Common/CurrencyInput';
+import { LancamentoItem } from './LancamentoItem';
+import { LancamentoFilters } from './LancamentoFilters';
+import { Tooltip } from './Common/Tooltip';
+import { clsx } from 'clsx';
+import { ConfirmModal } from './Common/ConfirmModal';
 
-export function Lancamentos() {
+export function Lancamentos({ showToast, user }: { showToast: (msg: string, type?: 'success' | 'error' | 'info') => void, user: AuthUser }) {
   const [lancamentos, setLancamentos] = useState<any[]>([]);
   const [categorias, setCategorias] = useState<any[]>([]);
   const [contas, setContas] = useState<any[]>([]);
@@ -25,7 +30,7 @@ export function Lancamentos() {
   });
   const [formData, setFormData] = useState({
     descricao: '',
-    valor: '',
+    valor: 0,
     data: new Date().toISOString().split('T')[0],
     tipo: 'DESPESA' as 'RECEITA' | 'DESPESA',
     conta_id: '',
@@ -34,229 +39,28 @@ export function Lancamentos() {
     status: 'CONFIRMADO' as 'PENDENTE' | 'CONFIRMADO' | 'CANCELADO',
     antecedencia_notificacao: 3,
     cartao_credito_usado: '',
-    forma_pagamento: 'DEBITO' as 'DEBITO' | 'CREDITO',
     isParcelado: false,
     numeroParcelas: 2,
+    forma_pagamento: 'DEBITO' as 'DEBITO' | 'CREDITO' | 'PIX',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [lancamentosData, categoriasData, contasData] = await Promise.all([
-        DatabaseService.getLancamentos(),
-        DatabaseService.getCategorias(),
-        DatabaseService.getContas()
-      ]);
-      setLancamentos(lancamentosData);
-      setCategorias(categoriasData);
-      setContas(contasData);
-    } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-      if (error instanceof Error && error.message === 'Usuário não autenticado') {
-        await AuthService.signOut();
-        return;
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const validateForm = () => {
-    const errors: Record<string, string> = {};
-    
-    if (!formData.descricao.trim()) {
-      errors.descricao = 'Descrição é obrigatória';
-    }
-    
-    const valor = parseCurrencyInput(formData.valor);
-    if (!formData.valor || isNaN(valor) || valor <= 0) {
-      errors.valor = 'Valor deve ser maior que zero';
-    }
-    
-    if (!formData.conta_id) {
-      errors.conta_id = 'Selecione uma conta';
-    }
-    
-    if (!formData.categoria_id) {
-      errors.categoria_id = 'Selecione uma categoria';
-    }
-    
-    if (formData.isParcelado && (formData.numeroParcelas < 2 || formData.numeroParcelas > 24)) {
-      errors.numeroParcelas = 'Número de parcelas deve estar entre 2 e 24';
-    }
-    
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
-
-    try {
-      const valor = parseCurrencyInput(formData.valor);
-      const dadosBase = {
-        descricao: formData.descricao.trim(),
-        valor: valor,
-        data: formData.data,
-        tipo: formData.tipo,
-        conta_id: formData.conta_id,
-        categoria_id: formData.categoria_id,
-        observacoes: formData.observacoes || null,
-        status: formData.status,
-        antecedencia_notificacao: formData.antecedencia_notificacao,
-        cartao_credito_usado: formData.cartao_credito_usado || null,
-      };
-
-      if (editingLancamento) {
-        await DatabaseService.updateLancamento(editingLancamento, dadosBase);
-      } else {
-        if (formData.isParcelado && formData.numeroParcelas > 1) {
-          const parcelas = createParcelaLancamentos(dadosBase, formData.numeroParcelas);
-          for (const parcela of parcelas) {
-            await DatabaseService.createLancamento(parcela);
-          }
-        } else {
-          await DatabaseService.createLancamento(dadosBase);
-        }
-      }
-
-      await loadData();
-      resetForm();
-    } catch (error) {
-      console.error('Erro ao salvar lançamento:', error);
-      if (error instanceof Error && error.message === 'Usuário não autenticado') {
-        await AuthService.signOut();
-        return;
-      }
-      alert('Erro ao salvar lançamento');
-    }
-  };
-
-  const handleEdit = (lancamento: any) => {
-    setEditingLancamento(lancamento.id);
-    setFormData({
-      descricao: lancamento.descricao,
-      valor: formatCurrency(lancamento.valor),
-      data: lancamento.data,
-      tipo: lancamento.tipo,
-      conta_id: lancamento.conta_id,
-      categoria_id: lancamento.categoria_id,
-      observacoes: lancamento.observacoes || '',
-      status: lancamento.status,
-      antecedencia_notificacao: lancamento.antecedencia_notificacao || 3,
-      cartao_credito_usado: lancamento.cartao_credito_usado || '',
-      forma_pagamento: lancamento.forma_pagamento || 'DEBITO',
-      isParcelado: false,
-      numeroParcelas: 2,
-    });
-    setShowForm(true);
-  };
-
-  const handleStatusChange = async (id: string, novoStatus: 'PENDENTE' | 'CONFIRMADO' | 'CANCELADO') => {
-    try {
-      await DatabaseService.updateLancamento(id, { status: novoStatus });
-      await loadData();
-    } catch (error) {
-      console.error('Erro ao atualizar status:', error);
-      if (error instanceof Error && error.message === 'Usuário não autenticado') {
-        await AuthService.signOut();
-        return;
-      }
-      alert('Erro ao atualizar status');
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este lançamento?')) {
-      try {
-        await DatabaseService.deleteLancamento(id);
-        await loadData();
-      } catch (error) {
-        console.error('Erro ao excluir lançamento:', error);
-        if (error instanceof Error && error.message === 'Usuário não autenticado') {
-          await AuthService.signOut();
-          return;
-        }
-        alert('Erro ao excluir lançamento');
-      }
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      descricao: '',
-      valor: '',
-      data: new Date().toISOString().split('T')[0],
-      tipo: 'DESPESA',
-      conta_id: '',
-      categoria_id: '',
-      observacoes: '',
-      status: 'CONFIRMADO',
-      antecedencia_notificacao: 3,
-      cartao_credito_usado: '',
-      forma_pagamento: 'DEBITO',
-      isParcelado: false,
-      numeroParcelas: 2,
-    });
-    setFormErrors({});
-    setShowForm(false);
-    setEditingLancamento(null);
-  };
-
-  const clearFilters = () => {
-    setFilters({
-      tipo: 'TODOS',
-      categoriaId: '',
-      contaId: '',
-      status: 'TODOS',
-      dataInicio: '',
-      dataFim: '',
-    });
-    setSearchTerm('');
-  };
-
-  const toggleParcelaExpansion = (parcelaId: string) => {
-    setExpandedParcelas(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(parcelaId)) {
-        newSet.delete(parcelaId);
-      } else {
-        newSet.add(parcelaId);
-      }
-      return newSet;
-    });
-  };
-
-  // Agrupar lançamentos por compra parcelada
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const firstErrorRef = useRef<HTMLInputElement | null>(null);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  // Antes de lancamentosFiltrados:
   const lancamentosAgrupados = useMemo(() => {
     const grupos: any[] = [];
     const processados = new Set<string>();
-
     lancamentos.forEach(lancamento => {
       if (processados.has(lancamento.id)) return;
-
       if (lancamento.compra_parcelada_id) {
-        // Buscar todas as parcelas desta compra
-        const parcelas = lancamentos.filter(l => 
-          l.compra_parcelada_id === lancamento.compra_parcelada_id
-        ).sort((a, b) => (a.parcela_atual || 0) - (b.parcela_atual || 0));
-
-        // Marcar todas as parcelas como processadas
+        const parcelas = lancamentos.filter(l => l.compra_parcelada_id === lancamento.compra_parcelada_id)
+          .sort((a, b) => (a.parcela_atual || 0) - (b.parcela_atual || 0));
         parcelas.forEach(p => processados.add(p.id));
-
-        // Criar grupo de parcelas
         const valorTotal = parcelas.reduce((sum, p) => sum + p.valor, 0);
         const primeiraParcela = parcelas[0];
-        
         grupos.push({
           id: lancamento.compra_parcelada_id,
           tipo: 'grupo_parcelas',
@@ -266,28 +70,25 @@ export function Lancamentos() {
           tipo_transacao: primeiraParcela.tipo,
           conta_id: primeiraParcela.conta_id,
           categoria_id: primeiraParcela.categoria_id,
+          observacoes: primeiraParcela.observacoes,
           status: primeiraParcela.status,
-          total_parcelas: primeiraParcela.total_parcelas,
+          antecedencia_notificacao: primeiraParcela.antecedencia_notificacao,
           cartao_credito_usado: primeiraParcela.cartao_credito_usado,
+          forma_pagamento: primeiraParcela.forma_pagamento, // garantir que o grupo tenha o campo correto
+          total_parcelas: primeiraParcela.total_parcelas,
+          isParcelado: true, // garantir que o grupo tenha isParcelado
           categoria: primeiraParcela.categoria,
           conta: primeiraParcela.conta,
           parcelas: parcelas,
           created_at: primeiraParcela.created_at
         });
       } else {
-        // Lançamento individual
-        grupos.push({
-          ...lancamento,
-          tipo_transacao: lancamento.tipo,
-          tipo: 'individual'
-        });
+        grupos.push({ ...lancamento, tipo_transacao: lancamento.tipo, tipo: 'individual' });
         processados.add(lancamento.id);
       }
     });
-
     return grupos;
   }, [lancamentos]);
-
   const lancamentosFiltrados = useMemo(() => {
     let resultado = lancamentosAgrupados;
 
@@ -322,28 +123,249 @@ export function Lancamentos() {
 
     return resultado.sort((a, b) => new Date(b.data || b.created_at).getTime() - new Date(a.data || a.created_at).getTime());
   }, [lancamentosAgrupados, searchTerm, filters]);
-
+  // Após lancamentosFiltrados:
   const categoriasFiltered = categorias.filter(c => c.tipo === formData.tipo);
   const hasActiveFilters = filters.tipo !== 'TODOS' || filters.status !== 'TODOS' || filters.categoriaId || filters.contaId || filters.dataInicio || filters.dataFim || searchTerm;
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(lancamentosFiltrados.length / itemsPerPage);
+  const paginatedLancamentos = lancamentosFiltrados.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [lancamentosData, categoriasData, contasData] = await Promise.all([
+        DatabaseService.getLancamentos(),
+        DatabaseService.getCategorias(),
+        DatabaseService.getContas()
+      ]);
+      setLancamentos(lancamentosData);
+      setCategorias(categoriasData);
+      setContas(contasData);
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+      if (error instanceof Error && error.message === 'Usuário não autenticado') {
+        await AuthService.signOut();
+        return;
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFieldChange = (field: keyof LancamentoFormData, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    // Validação instantânea do campo
+    const error = validateLancamentoField(field, value, { ...formData, [field]: value }, temCartaoCredito);
+    setFormErrors(prev => ({ ...prev, [field]: error }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validação centralizada
+    const { isValid, errors } = validateLancamentoForm(formData, temCartaoCredito);
+    setFormErrors(errors);
+    if (!isValid) {
+      showToast('Por favor, corrija os erros do formulário.', 'error');
+      return;
+    }
+
+    // Validação adicional: verificar se a conta tem limite de crédito para compra parcelada
+    if (formData.isParcelado && !temCartaoCredito) {
+      setFormErrors(prev => ({ ...prev, isParcelado: 'Compra parcelada só é permitida para contas com limite de crédito' }));
+      showToast('Compra parcelada só é permitida para contas com limite de crédito', 'error');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const valor = formData.valor;
+      const dadosBase = {
+        ...formData,
+        user_id: user.id,
+        observacoes: formData.observacoes || null,
+        cartao_credito_usado: formData.cartao_credito_usado || null,
+        forma_pagamento: formData.tipo === 'DESPESA' ? (formData.forma_pagamento || 'DEBITO') : null,
+      };
+      let id: string | null = null;
+      if (editingLancamento) {
+        await DatabaseService.updateLancamento(editingLancamento, dadosBase);
+        showToast('Lançamento atualizado com sucesso!', 'info');
+        id = editingLancamento;
+      } else {
+        if (formData.isParcelado && formData.numeroParcelas > 1) {
+          const parcelas = createParcelaLancamentos(dadosBase as any, formData.numeroParcelas);
+          for (const parcela of parcelas) {
+            // Remover campos não aceitos pelo banco
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { id: _id, parcelas: _parcelas, isParcelado: _isParcelado, numeroParcelas: _numeroParcelas, ...parcelaDb } = parcela;
+            // Garantir user_id e tipo válido
+            let tipoFinal: 'RECEITA' | 'DESPESA' = (parcela.hasOwnProperty('tipo_transacao') && (parcela as any).tipo_transacao) ? (parcela as any).tipo_transacao : parcela.tipo;
+            const parcelaDbFinal = { ...parcelaDb, user_id: user.id, tipo: tipoFinal };
+            const novo = await DatabaseService.createLancamento(parcelaDbFinal);
+            if (!id) id = novo.id;
+          }
+          showToast('Lançamento parcelado criado com sucesso!', 'success');
+        } else {
+          const { id: _id, parcelas: _parcelas, isParcelado: _isParcelado, numeroParcelas: _numeroParcelas, ...dadosBaseDb } = dadosBase as any;
+          let tipoFinal: 'RECEITA' | 'DESPESA' = (dadosBase.hasOwnProperty('tipo_transacao') && (dadosBase as any).tipo_transacao) ? (dadosBase as any).tipo_transacao : dadosBase.tipo;
+          const dadosBaseFinal = { ...dadosBaseDb, user_id: user.id, tipo: tipoFinal };
+          const novo = await DatabaseService.createLancamento(dadosBaseFinal);
+          id = novo.id;
+          showToast('Lançamento criado com sucesso!', 'success');
+        }
+      }
+      setShowForm(false);
+      setEditingLancamento(null);
+      setHighlightedId(id);
+      loadData();
+      resetForm();
+    } catch (error) {
+      showToast('Erro ao salvar lançamento', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEdit = (lancamento: any) => {
+    setEditingLancamento(lancamento);
+    setFormData({
+      descricao: lancamento.descricao || '',
+      valor: lancamento.valor,
+      data: lancamento.data,
+      tipo: lancamento.tipo,
+      conta_id: lancamento.conta_id,
+      categoria_id: lancamento.categoria_id,
+      observacoes: lancamento.observacoes || '',
+      status: lancamento.status,
+      antecedencia_notificacao: lancamento.antecedencia_notificacao ?? 3,
+      cartao_credito_usado: lancamento.cartao_credito_usado || '',
+      isParcelado: Boolean(lancamento.isParcelado),
+      numeroParcelas: lancamento.numeroParcelas || 2,
+      forma_pagamento: lancamento.forma_pagamento || 'DEBITO',
+    });
+    setShowForm(true);
+  };
+
+  const handleStatusChange = async (id: string, novoStatus: 'PENDENTE' | 'CONFIRMADO' | 'CANCELADO') => {
+    try {
+      console.log('Atualizando status:', { id, status: novoStatus });
+      await DatabaseService.updateLancamento(id, { status: novoStatus });
+      await loadData();
+      if (novoStatus === 'PENDENTE') {
+        showToast('Lançamento marcado como pendente.', 'info');
+      } else if (novoStatus === 'CONFIRMADO') {
+        showToast('Lançamento confirmado.', 'success');
+      } else if (novoStatus === 'CANCELADO') {
+        showToast('Lançamento cancelado.', 'error');
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error);
+      if (error instanceof Error && error.message === 'Usuário não autenticado') {
+        await AuthService.signOut();
+        return;
+      }
+      showToast(error instanceof Error ? error.message : String(error), 'error');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      // Verifica se é um grupo de parcelas
+      const grupo = lancamentosAgrupados.find(l => l.id === id && l.tipo === 'grupo_parcelas');
+      if (grupo && grupo.parcelas && grupo.parcelas.length > 0) {
+        // Exclui todas as parcelas do grupo
+        for (const parcela of grupo.parcelas) {
+          await DatabaseService.deleteLancamento(parcela.id);
+        }
+      } else {
+        // Exclui lançamento individual normalmente
+      await DatabaseService.deleteLancamento(id);
+      }
+      await loadData();
+      showToast('Lançamento excluído com sucesso.', 'success');
+    } catch (error) {
+      console.error('Erro ao excluir lançamento:', error);
+      if (error instanceof Error && error.message === 'Usuário não autenticado') {
+        await AuthService.signOut();
+        return;
+      }
+      showToast('Erro ao excluir lançamento', 'error');
+    } finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      descricao: '',
+      valor: 0,
+      data: new Date().toISOString().split('T')[0],
+      tipo: 'DESPESA',
+      conta_id: '',
+      categoria_id: '',
+      observacoes: '',
+      status: 'CONFIRMADO',
+      antecedencia_notificacao: 3,
+      cartao_credito_usado: '',
+      isParcelado: false,
+      numeroParcelas: 2,
+      forma_pagamento: 'DEBITO',
+    });
+    setFormErrors({});
+    setShowForm(false);
+    setEditingLancamento(null);
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      tipo: 'TODOS',
+      categoriaId: '',
+      contaId: '',
+      status: 'TODOS',
+      dataInicio: '',
+      dataFim: '',
+    });
+    setSearchTerm('');
+  };
+
+  const toggleParcelaExpansion = (parcelaId: string) => {
+    setExpandedParcelas(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(parcelaId)) {
+        newSet.delete(parcelaId);
+      } else {
+        newSet.add(parcelaId);
+      }
+      return newSet;
+    });
+  };
 
   // Verificar se a conta selecionada tem cartão de crédito
   const contaSelecionada = contas.find(c => c.id === formData.conta_id);
   const temCartaoCredito = contaSelecionada?.limite_credito && contaSelecionada.limite_credito > 0;
 
-  const getStatusIcon = (status: string) => {
+  // Adicionar funções utilitárias locais:
+  function getStatusIcon(status: string) {
     switch (status) {
       case 'CONFIRMADO':
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
+        return <CheckCircle className="w-4 h-4" />;
       case 'PENDENTE':
-        return <Clock className="w-4 h-4 text-yellow-600" />;
+        return <Clock className="w-4 h-4" />;
       case 'CANCELADO':
-        return <XCircle className="w-4 h-4 text-red-600" />;
+        return <XCircle className="w-4 h-4" />;
       default:
         return null;
     }
-  };
-
-  const getStatusColor = (status: string) => {
+  }
+  function getStatusColor(status: string) {
     switch (status) {
       case 'CONFIRMADO':
         return 'text-green-600 bg-green-50';
@@ -354,7 +376,7 @@ export function Lancamentos() {
       default:
         return 'text-gray-600 bg-gray-50';
     }
-  };
+  }
 
   if (loading) {
     return (
@@ -367,417 +389,349 @@ export function Lancamentos() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 lg:p-6 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Lançamentos</h1>
-          <p className="text-gray-600 mt-2">Gerencie suas receitas e despesas</p>
+          <h1 className="text-3xl lg:text-5xl font-extrabold text-gray-900 dark:text-white tracking-tight mb-1">Lançamentos</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-300 mt-1">Gerencie suas receitas e despesas</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center justify-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Novo Lançamento</span>
-        </button>
+        <div className="flex items-center gap-2 ml-auto">
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-xl shadow-sm transition-all duration-200 font-semibold text-base focus:outline-none focus:ring-2 focus:ring-blue-200 group"
+            aria-label="Adicionar novo lançamento"
+            type="button"
+          >
+            <Plus className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            <span>Novo Lançamento</span>
+          </button>
+        </div>
       </div>
 
       {/* Busca e Filtros */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Buscar por descrição..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-colors ${
-              hasActiveFilters 
-                ? 'bg-blue-50 border-blue-200 text-blue-700' 
-                : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            <Filter className="w-5 h-5" />
-            <span>Filtros</span>
-            {hasActiveFilters && (
-              <span className="bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                !
-              </span>
-            )}
-          </button>
-
-          {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-            >
-              <X className="w-4 h-4" />
-              <span>Limpar</span>
-            </button>
-          )}
-        </div>
-
-        {showFilters && (
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                <select
-                  value={filters.tipo}
-                  onChange={(e) => setFilters(prev => ({ ...prev, tipo: e.target.value as any }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="TODOS">Todos</option>
-                  <option value="RECEITA">Receitas</option>
-                  <option value="DESPESA">Despesas</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select
-                  value={filters.status}
-                  onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value as any }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="TODOS">Todos</option>
-                  <option value="CONFIRMADO">Confirmado</option>
-                  <option value="PENDENTE">Pendente</option>
-                  <option value="CANCELADO">Cancelado</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
-                <select
-                  value={filters.categoriaId}
-                  onChange={(e) => setFilters(prev => ({ ...prev, categoriaId: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">Todas</option>
-                  {categorias.map(categoria => (
-                    <option key={categoria.id} value={categoria.id}>
-                      {categoria.nome}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Conta</label>
-                <select
-                  value={filters.contaId}
-                  onChange={(e) => setFilters(prev => ({ ...prev, contaId: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">Todas</option>
-                  {contas.map(conta => (
-                    <option key={conta.id} value={conta.id}>
-                      {conta.nome}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Data Início</label>
-                <input
-                  type="date"
-                  value={filters.dataInicio}
-                  onChange={(e) => setFilters(prev => ({ ...prev, dataInicio: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Data Fim</label>
-                <input
-                  type="date"
-                  value={filters.dataFim}
-                  onChange={(e) => setFilters(prev => ({ ...prev, dataFim: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      <LancamentoFilters
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        showFilters={showFilters}
+        setShowFilters={setShowFilters}
+        hasActiveFilters={hasActiveFilters}
+        clearFilters={clearFilters}
+        filters={filters}
+        setFilters={setFilters}
+        categorias={categorias}
+        contas={contas}
+      />
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">
+        <div
+          className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-start justify-center z-50 p-4 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowForm(false);
+          }}
+          tabIndex={-1}
+          aria-modal="true"
+          role="dialog"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setShowForm(false);
+          }}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[95vh] overflow-y-auto border border-gray-100 dark:border-gray-700 animate-in transition-all duration-300"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-8 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                 {editingLancamento ? 'Editar Lançamento' : 'Novo Lançamento'}
               </h2>
+              <button
+                onClick={resetForm}
+                className="ml-2 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                aria-label="Fechar modal"
+                type="button"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
             </div>
-            
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Descrição *
-                </label>
-                <input
-                  type="text"
-                  value={formData.descricao}
-                  onChange={(e) => setFormData(prev => ({ ...prev, descricao: e.target.value }))}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    formErrors.descricao ? 'border-red-300' : 'border-gray-300'
-                  }`}
-                  placeholder="Ex: Supermercado, Salário..."
-                />
-                {formErrors.descricao && (
-                  <p className="text-red-600 text-sm mt-1">{formErrors.descricao}</p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit} className="p-8 space-y-8">
+              {/* Bloco: Descrição */}
+              <Tooltip text="Descrição do lançamento (ex: Supermercado, Salário...)" position="right">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Valor *
-                  </label>
-                  <CurrencyInput
-                    value={formData.valor}
-                    onChange={(value) => setFormData(prev => ({ ...prev, valor: value }))}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      formErrors.valor ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    error={!!formErrors.valor}
-                  />
-                  {formErrors.valor && (
-                    <p className="text-red-600 text-sm mt-1">{formErrors.valor}</p>
-                  )}
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Data *
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.data}
-                    onChange={(e) => setFormData(prev => ({ ...prev, data: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tipo *
-                  </label>
-                  <select
-                    value={formData.tipo}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      tipo: e.target.value as 'RECEITA' | 'DESPESA',
-                      categoria_id: ''
-                    }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="DESPESA">Despesa</option>
-                    <option value="RECEITA">Receita</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Status *
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as any }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="CONFIRMADO">Confirmado</option>
-                    <option value="PENDENTE">Pendente</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Categoria *
-                </label>
-                <select
-                  value={formData.categoria_id}
-                  onChange={(e) => setFormData(prev => ({ ...prev, categoria_id: e.target.value }))}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    formErrors.categoria_id ? 'border-red-300' : 'border-gray-300'
-                  }`}
-                >
-                  <option value="">Selecione uma categoria</option>
-                  {categoriasFiltered.map(categoria => (
-                    <option key={categoria.id} value={categoria.id}>
-                      {categoria.nome}
-                    </option>
-                  ))}
-                </select>
-                {formErrors.categoria_id && (
-                  <p className="text-red-600 text-sm mt-1">{formErrors.categoria_id}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Conta *
-                </label>
-                <select
-                  value={formData.conta_id}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    conta_id: e.target.value, 
-                    forma_pagamento: 'DEBITO', // Reset para débito ao trocar conta
-                    cartao_credito_usado: '' 
-                  }))}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    formErrors.conta_id ? 'border-red-300' : 'border-gray-300'
-                  }`}
-                >
-                  <option value="">Selecione uma conta</option>
-                  {contas.map(conta => (
-                    <option key={conta.id} value={conta.id}>
-                      {conta.nome} {conta.limite_credito && conta.limite_credito > 0 ? '(com função crédito)' : ''}
-                    </option>
-                  ))}
-                </select>
-                {formErrors.conta_id && (
-                  <p className="text-red-600 text-sm mt-1">{formErrors.conta_id}</p>
-                )}
-              </div>
-
-              {/* Forma de Pagamento - só aparece para despesas em contas com função crédito */}
-              {formData.tipo === 'DESPESA' && temCartaoCredito && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Forma de Pagamento *
-                  </label>
-                  <select
-                    value={formData.forma_pagamento}
-                    onChange={(e) => setFormData(prev => ({ ...prev, forma_pagamento: e.target.value as 'DEBITO' | 'CREDITO' }))}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      formErrors.forma_pagamento ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                  >
-                    <option value="DEBITO">💳 Débito (sai do saldo da conta)</option>
-                    <option value="CREDITO">🏦 Crédito (vai para a fatura)</option>
-                  </select>
-                  {formErrors.forma_pagamento && (
-                    <p className="text-red-600 text-sm mt-1">{formErrors.forma_pagamento}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Campo de identificação do cartão - só aparece se for crédito */}
-              {formData.tipo === 'DESPESA' && formData.forma_pagamento === 'CREDITO' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    <CreditCard className="w-4 h-4 inline mr-1" />
-                    Identificação do Cartão (Opcional)
+                  <label htmlFor="descricao" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                    Descrição *
                   </label>
                   <input
                     type="text"
-                    value={formData.cartao_credito_usado}
-                    onChange={(e) => setFormData(prev => ({ ...prev, cartao_credito_usado: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Ex: Visa, Mastercard, Elo..."
+                    id="descricao"
+                    name="descricao"
+                    value={formData.descricao}
+                    onChange={e => handleFieldChange('descricao', e.target.value)}
+                    onBlur={e => handleFieldChange('descricao', e.target.value)}
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-all duration-200 ${formErrors.descricao ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'}`}
+                    placeholder="Ex: Supermercado, Salário..."
+                    required
+                    aria-required={true}
+                    autoFocus
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Para identificar qual cartão foi usado (opcional)
-                  </p>
+                  {formErrors.descricao && (
+                    <p className="text-red-600 dark:text-red-400 text-sm mt-1 animate-shake" id="descricao-error">{formErrors.descricao}</p>
+                  )}
                 </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Antecedência para Notificação
-                </label>
-                <select
-                  value={formData.antecedencia_notificacao}
-                  onChange={(e) => setFormData(prev => ({ ...prev, antecedencia_notificacao: parseInt(e.target.value) }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value={1}>1 dia antes</option>
-                  <option value={3}>3 dias antes</option>
-                  <option value={7}>7 dias antes</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Observações
-                </label>
-                <textarea
-                  value={formData.observacoes}
-                  onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Observações opcionais..."
-                  rows={3}
-                />
-              </div>
-
-              {formData.tipo === 'DESPESA' && !editingLancamento && (
-                <div className="space-y-3">
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="isParcelado"
-                      checked={formData.isParcelado}
-                      onChange={(e) => setFormData(prev => ({ ...prev, isParcelado: e.target.checked }))}
-                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                    />
-                    <label htmlFor="isParcelado" className="ml-2 text-sm font-medium text-gray-700">
-                      Compra parcelada
+              </Tooltip>
+              {/* Bloco: Valor e Data */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Tooltip text="Valor do lançamento (apenas números positivos)" position="top">
+                  <div>
+                    <label htmlFor="valor" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                      Valor *
                     </label>
+                    <CurrencyInput
+                      id="valor"
+                      name="valor"
+                      value={formData.valor}
+                      onChange={value => handleFieldChange('valor', value)}
+                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-all duration-200 ${formErrors.valor ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'}`}
+                      error={Boolean(formErrors.valor)}
+                      required
+                      aria-required={true}
+                    />
+                    {formErrors.valor && (
+                      <p className="text-red-600 dark:text-red-400 text-sm mt-1 animate-shake" id="valor-error">{formErrors.valor}</p>
+                    )}
                   </div>
-
-                  {formData.isParcelado && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Número de parcelas
-                      </label>
+                </Tooltip>
+                <Tooltip text="Data do lançamento" position="top">
+                  <div>
+                    <label htmlFor="data" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                      Data *
+                    </label>
+                    <input
+                      type="date"
+                      id="data"
+                      name="data"
+                      value={formData.data}
+                      onChange={(e) => handleFieldChange('data', e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-all duration-200"
+                      required
+                      aria-required={true}
+                    />
+                  </div>
+                </Tooltip>
+              </div>
+              {/* Bloco: Tipo e Status */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Tooltip text="Tipo de lançamento: Receita ou Despesa" position="top">
+                  <div>
+                    <label htmlFor="tipo" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                      Tipo *
+                    </label>
+                    <select
+                      id="tipo"
+                      name="tipo"
+                      value={formData.tipo}
+                      onChange={(e) => handleFieldChange('tipo', e.target.value as 'RECEITA' | 'DESPESA')}
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-all duration-200"
+                      required
+                      aria-required={true}
+                    >
+                      <option value="DESPESA">Despesa</option>
+                      <option value="RECEITA">Receita</option>
+                    </select>
+                  </div>
+                </Tooltip>
+                <Tooltip text="Status do lançamento" position="top">
+                  <div>
+                    <label htmlFor="status" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                      Status *
+                    </label>
+                    <select
+                      id="status"
+                      name="status"
+                      value={formData.status}
+                      onChange={(e) => handleFieldChange('status', e.target.value as any)}
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-all duration-200"
+                      required
+                      aria-required={true}
+                    >
+                      <option value="CONFIRMADO">Confirmado</option>
+                      <option value="PENDENTE">Pendente</option>
+                    </select>
+                  </div>
+                </Tooltip>
+              </div>
+              {/* Bloco: Categoria, Conta, Notificação */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Tooltip text="Categoria do lançamento" position="top">
+                  <div>
+                    <label htmlFor="categoria" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                      Categoria *
+                    </label>
+                    <select
+                      id="categoria"
+                      name="categoria_id"
+                      value={formData.categoria_id}
+                      onChange={(e) => handleFieldChange('categoria_id', e.target.value)}
+                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-all duration-200 ${formErrors.categoria_id ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'}`}
+                      required
+                      aria-required={true}
+                    >
+                      <option value="">Selecione uma categoria</option>
+                      {categoriasFiltered.map(categoria => (
+                        <option key={categoria.id} value={categoria.id}>
+                          {categoria.nome || 'Categoria'}
+                        </option>
+                      ))}
+                    </select>
+                    {formErrors.categoria_id && (
+                      <p className="text-red-600 dark:text-red-400 text-sm mt-1 animate-shake" id="categoria-error">{formErrors.categoria_id}</p>
+                    )}
+                  </div>
+                </Tooltip>
+                <Tooltip text="Conta do lançamento" position="top">
+                  <div>
+                    <label htmlFor="conta" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                      Conta *
+                    </label>
+                    <select
+                      id="conta"
+                      name="conta_id"
+                      value={formData.conta_id}
+                      onChange={e => {
+                        handleFieldChange('conta_id', e.target.value);
+                        handleFieldChange('forma_pagamento', 'DEBITO'); // Reset para débito ao trocar conta
+                        handleFieldChange('cartao_credito_usado', '');
+                      }}
+                      onBlur={e => handleFieldChange('conta_id', e.target.value)}
+                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-all duration-200 ${formErrors.conta_id ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'}`}
+                      required
+                      aria-required={true}
+                    >
+                      <option value="">Selecione uma conta</option>
+                      {contas.map(conta => (
+                        <option key={conta.id} value={conta.id}>
+                          {conta.nome || 'Conta'}
+                        </option>
+                      ))}
+                    </select>
+                    {formErrors.conta_id && (
+                      <p className="text-red-600 dark:text-red-400 text-sm mt-1 animate-shake" id="conta-error">{formErrors.conta_id}</p>
+                    )}
+                  </div>
+                </Tooltip>
+                <Tooltip text="Quando avisar sobre este lançamento?" position="top">
+                  <div className="flex flex-col justify-end h-full">
+                    <label htmlFor="notificacao" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                      Notificações
+                    </label>
+                    <select
+                      id="notificacao"
+                      name="notificacao"
+                      value={formData.antecedencia_notificacao}
+                      onChange={(e) => handleFieldChange('antecedencia_notificacao', parseInt(e.target.value))}
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-all duration-200"
+                    >
+                      <option value="">Sem notificação</option>
+                      <option value={1}>1 dia antes</option>
+                      <option value={3}>3 dias antes</option>
+                      <option value={7}>7 dias antes</option>
+                    </select>
+                  </div>
+                </Tooltip>
+              </div>
+              {/* Bloco: Observações e Opções */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+                <div>
+                  <label htmlFor="observacoes" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                    Observações
+                  </label>
+                  <textarea
+                    id="observacoes"
+                    name="observacoes"
+                    value={formData.observacoes}
+                    onChange={e => handleFieldChange('observacoes', e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white min-h-[64px] transition-all duration-200"
+                    placeholder="Observações opcionais..."
+                  />
+                </div>
+                <div className="flex items-center h-full mt-4 md:mt-0 gap-4">
+                  {/* Bloco: Forma de Pagamento e Parcelamento */}
+                  {formData.tipo === 'DESPESA' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+                      <div>
+                        <label htmlFor="forma_pagamento" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                          Forma de Pagamento *
+                        </label>
+                        <select
+                          id="forma_pagamento"
+                          name="forma_pagamento"
+                          value={formData.forma_pagamento}
+                          onChange={e => handleFieldChange('forma_pagamento', e.target.value as 'DEBITO' | 'CREDITO' | 'PIX')}
+                          className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-all duration-200"
+                          required
+                          aria-required={true}
+                        >
+                          <option value="DEBITO">Débito</option>
+                          <option value="CREDITO">Crédito</option>
+                          <option value="PIX">PIX</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col w-full">
+                        <div className="flex items-center">
+                  <input
+                    id="isParcelado"
+                    name="isParcelado"
+                    type="checkbox"
+                    checked={!!formData.isParcelado}
+                            onChange={e => handleFieldChange('isParcelado', !!e.target.checked)}
+                    className="mr-2 accent-blue-600 w-5 h-5"
+                            disabled={formData.forma_pagamento !== 'CREDITO'}
+                  />
+                          <label htmlFor="isParcelado" className={"text-sm font-medium select-none cursor-pointer mr-4 " + (formData.forma_pagamento !== 'CREDITO' ? 'text-gray-400' : 'text-gray-700 dark:text-gray-200') }>
+                    Compra parcelada
+                  </label>
+                        </div>
+                        {formData.isParcelado && formData.forma_pagamento === 'CREDITO' && (
+                          <div className="flex flex-col w-full max-w-xs mt-2">
+                      <label htmlFor="numeroParcelas" className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">Qtd. parcelas</label>
                       <input
                         type="number"
-                        min="2"
-                        max="24"
+                        id="numeroParcelas"
+                        name="numeroParcelas"
+                        min={2}
+                        max={24}
                         value={formData.numeroParcelas}
-                        onChange={(e) => setFormData(prev => ({ ...prev, numeroParcelas: parseInt(e.target.value) }))}
-                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          formErrors.numeroParcelas ? 'border-blue-300' : 'border-gray-300'
-                        }`}
+                        onChange={e => handleFieldChange('numeroParcelas', Number(e.target.value))}
+                        className={`w-full px-2 py-1 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm ${formErrors.numeroParcelas ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'}`}
+                        required
+                        aria-required={true}
                       />
                       {formErrors.numeroParcelas && (
-                        <p className="text-red-600 text-sm mt-1">{formErrors.numeroParcelas}</p>
+                        <p className="text-red-600 dark:text-red-400 text-xs mt-1 animate-shake" id="numeroParcelas-error">{formErrors.numeroParcelas}</p>
                       )}
-                      <p className="text-sm text-gray-500 mt-1">
-                        Valor por parcela: {formData.valor ? formatCurrency(parseCurrencyInput(formData.valor) / formData.numeroParcelas) : 'R$ 0,00'}
-                      </p>
+                      {formData.valor > 0 && formData.numeroParcelas > 1 && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">{`Valor por parcela: R$ ${(Number(formData.valor) / Number(formData.numeroParcelas)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}</span>
+                      )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
-              )}
-
-              <div className="flex space-x-3 pt-4">
+              </div>
+              {/* Bloco: Ações */}
+              <div className="flex justify-end gap-4 pt-2">
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  className="px-6 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="px-6 py-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition flex items-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
+                  disabled={isSubmitting}
                 >
-                  {editingLancamento ? 'Salvar' : 'Criar'}
+                  {isSubmitting ? 'Salvando...' : 'Salvar'}
                 </button>
               </div>
             </form>
@@ -786,10 +740,10 @@ export function Lancamentos() {
       )}
 
       {/* Lista de Lançamentos */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
               Histórico de Lançamentos
             </h2>
             <span className="text-sm text-gray-500">
@@ -799,228 +753,345 @@ export function Lancamentos() {
         </div>
         
         <div className="p-6">
-          {lancamentosFiltrados.length > 0 ? (
-            <div className="space-y-3">
-              {lancamentosFiltrados.map((item) => {
-                const categoria = categorias.find(c => c.id === item.categoria_id);
-                const conta = contas.find(c => c.id === item.conta_id);
-                const isExpanded = expandedParcelas.has(item.id);
-                
-                return (
-                  <div key={item.id} className="border border-gray-200 rounded-lg">
-                    {/* Lançamento principal */}
-                    <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors group">
-                      <div className="flex items-center space-x-4 flex-1">
-                        {/* Ícone de expansão para parcelas */}
-                        {item.tipo === 'grupo_parcelas' && (
+          {paginatedLancamentos.length === 0 ? (
+            <div className="text-center text-gray-500 dark:text-gray-400 py-12 flex flex-col items-center justify-center">
+              <DollarSign className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+              <p>Nenhum lançamento encontrado</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {paginatedLancamentos.map((lancamento) => (
+                lancamento.tipo === 'grupo_parcelas' ? (
+                  <div key={lancamento.id} className="flex flex-col">
+                <div
+                  className={clsx(
+                        'group flex items-center justify-between bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm px-4 py-3 transition-all duration-200 hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer',
+                    highlightedId === lancamento.id && 'ring-2 ring-blue-400/40'
+                  )}
+                      onClick={() => toggleParcelaExpansion(lancamento.id)}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
                           <button
-                            onClick={() => toggleParcelaExpansion(item.id)}
-                            className="p-1 hover:bg-gray-200 rounded transition-colors"
+                            type="button"
+                            aria-label={expandedParcelas.has(lancamento.id) ? 'Recolher parcelas' : 'Expandir parcelas'}
+                            className="mr-2 focus:outline-none"
+                            onClick={e => { e.stopPropagation(); toggleParcelaExpansion(lancamento.id); }}
                           >
-                            {isExpanded ? (
-                              <ChevronDown className="w-4 h-4 text-gray-600" />
-                            ) : (
-                              <ChevronRight className="w-4 h-4 text-gray-600" />
-                            )}
+                            <span className={clsx('transition-transform', expandedParcelas.has(lancamento.id) ? 'rotate-90' : '')}>
+                              <ChevronRight className="w-5 h-5 text-gray-500" />
+                        </span>
                           </button>
-                        )}
-
-                        <div 
-                          className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0"
-                          style={{ 
-                            backgroundColor: (item.tipo_transacao || item.tipo) === 'RECEITA' 
-                              ? '#10B981' + '20' 
-                              : categoria?.cor + '20' 
-                          }}
-                        >
-                          {(item.tipo_transacao || item.tipo) === 'RECEITA' ? (
-                            <DollarSign className="w-6 h-6 text-green-600" />
-                          ) : (
-                            <div 
-                              className="w-6 h-6 rounded-full"
-                              style={{ backgroundColor: categoria?.cor }}
-                            />
+                          <span className="font-semibold text-gray-900 dark:text-white truncate">{lancamento.descricao || 'Compra parcelada'}</span>
+                          {/* Status + Badge */}
+                          {['CONFIRMADO', 'PENDENTE', 'CANCELADO'].includes(lancamento.status) && (
+                            <>
+                              <span className={clsx(
+                                'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ml-2',
+                                lancamento.status === 'CONFIRMADO' ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
+                                lancamento.status === 'PENDENTE' ? 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
+                                'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300')
+                              }>
+                                {lancamento.status === 'CONFIRMADO' && <CheckCircle className="w-4 h-4" />}
+                                {lancamento.status === 'PENDENTE' && <Clock className="w-4 h-4" />}
+                                {lancamento.status === 'CANCELADO' && <XCircle className="w-4 h-4" />}
+                                {lancamento.status}
+                        </span>
+                              <span className={clsx(
+                                'ml-2 px-2 py-0.5 rounded-full text-xs font-semibold',
+                                lancamento.forma_pagamento === 'CREDITO'
+                                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                                  : lancamento.forma_pagamento === 'PIX'
+                                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                  : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+                              )}>
+                                {lancamento.forma_pagamento === 'CREDITO' ? 'CRÉDITO' : lancamento.forma_pagamento === 'PIX' ? 'PIX' : 'DÉBITO'}
+                        </span>
+                            </>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                      <Calendar className="w-4 h-4 mr-1 inline" />
+                      {formatDate(lancamento.data)}
+                      <span className="mx-1">•</span>
+                      {lancamento.categoria?.nome || 'Sem categoria'}
+                      <span className="mx-1">•</span>
+                      {lancamento.conta?.nome || 'Sem conta'}
+                          {lancamento.isParcelado && lancamento.total_parcelas > 1 && (
+                            <>
+                              <span className="mx-1">•</span>
+                              <span className="text-xs text-blue-600 dark:text-blue-300">Parcelado em {lancamento.total_parcelas} vezes</span>
+                            </>
                           )}
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center space-x-2">
-                            <p className="font-medium text-gray-900 truncate">{item.descricao}</p>
-                            <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(item.status)}`}>
-                              {getStatusIcon(item.status)}
-                              <span>{item.status}</span>
-                            </span>
-                            {item.cartao_credito_usado && (
-                              <span className="inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700">
-                                <CreditCard className="w-3 h-3" />
-                                <span>{item.cartao_credito_usado}</span>
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center space-x-2 text-sm text-gray-500">
-                            <Calendar className="w-4 h-4 flex-shrink-0" />
-                            <span>{formatDate(item.data)}</span>
-                            <span>•</span>
-                            <span className="truncate">{categoria?.nome}</span>
-                            <span>•</span>
-                            <span className="truncate">{conta?.nome}</span>
-                          </div>
-                          {item.tipo === 'grupo_parcelas' && (
-                            <div className="text-xs text-blue-600 mt-1">
-                              {item.total_parcelas} parcelas
-                            </div>
-                          )}
-                          {item.total_parcelas && item.tipo !== 'grupo_parcelas' && (
-                            <div className="text-xs text-blue-600 mt-1">
-                              Parcela {item.parcela_atual}/{item.total_parcelas}
-                            </div>
-                          )}
-                          {item.observacoes && (
-                            <div className="text-xs text-gray-400 mt-1 truncate">
-                              {item.observacoes}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center space-x-3 flex-shrink-0">
-                        <div className={`font-semibold text-lg ${
-                          (item.tipo_transacao || item.tipo) === 'RECEITA' ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {(item.tipo_transacao || item.tipo) === 'RECEITA' ? '+ ' : '- '}{formatCurrency(item.valor)}
-                        </div>
-                        
-                        {item.tipo !== 'grupo_parcelas' && (
-                          <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {item.status !== 'CONFIRMADO' && (
-                              <button 
-                                onClick={() => handleStatusChange(item.id, 'CONFIRMADO')}
-                                className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all duration-200"
-                                title="Confirmar"
-                              >
-                                <CheckCircle className="w-4 h-4" />
-                              </button>
-                            )}
-                            {item.status !== 'PENDENTE' && (
-                              <button 
-                                onClick={() => handleStatusChange(item.id, 'PENDENTE')}
-                                className="p-2 text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition-all duration-200"
-                                title="Marcar como Pendente"
-                              >
-                                <Clock className="w-4 h-4" />
-                              </button>
-                            )}
-                            {item.status !== 'CANCELADO' && (
-                              <button 
-                                onClick={() => handleStatusChange(item.id, 'CANCELADO')}
-                                className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
-                                title="Cancelar"
-                              >
-                                <XCircle className="w-4 h-4" />
-                              </button>
-                            )}
-                            
-                            <button 
-                              onClick={() => handleEdit(item)}
-                              className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
-                              title="Editar"
+                          {lancamento.cartao_credito_usado && (
+                            <><span className="mx-1">•</span><span>Cartão: {lancamento.cartao_credito_usado}</span></> )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 ml-4">
+                    <span className={clsx(
+                      'font-bold text-lg whitespace-nowrap',
+                      lancamento.tipo_transacao === 'DESPESA' ? 'text-red-600' : 'text-green-600'
+                    )}>
+                      {lancamento.tipo_transacao === 'DESPESA' ? '- ' : '+ '}{formatCurrency(lancamento.valor)}
+                    </span>
+                        {/* Controles do grupo parcelado */}
+                        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Tooltip text={lancamento.status === 'CONFIRMADO' ? 'Marcar como Pendente' : 'Marcar como Confirmado'} position="top">
+                            <button
+                              onClick={async () => {
+                                await handleStatusChange(lancamento.id, lancamento.status === 'CONFIRMADO' ? 'PENDENTE' : 'CONFIRMADO');
+                              }}
+                              className="p-2 text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition-all duration-200"
+                              aria-label="Alterar status"
                             >
-                              <Edit3 className="w-4 h-4" />
+                              <Clock className="w-4 h-4" />
                             </button>
-                            <button 
-                              onClick={() => handleDelete(item.id)}
+                          </Tooltip>
+                          <Tooltip text="Cancelar compra parcelada" position="top">
+                            <button
+                              onClick={async () => {
+                                await handleStatusChange(lancamento.id, 'CANCELADO');
+                              }}
                               className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
-                              title="Excluir"
+                              aria-label="Cancelar compra parcelada"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <XCircle className="w-4 h-4" />
                             </button>
-                          </div>
-                        )}
+                          </Tooltip>
+                          <Tooltip text="Editar compra parcelada" position="top">
+                            <button
+                              onClick={() => handleEdit(lancamento)}
+                              className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                              aria-label="Editar compra parcelada"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          </Tooltip>
+                          <Tooltip text="Excluir compra parcelada" position="top">
+                            <button
+                              onClick={() => setConfirmDeleteId(lancamento.id)}
+                              className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                              aria-label="Excluir compra parcelada"
+                              disabled={deletingId === lancamento.id}
+                            >
+                              <Trash className="w-4 h-4" />
+                            </button>
+                          </Tooltip>
+                        </div>
                       </div>
                     </div>
-
-                    {/* Parcelas expandidas */}
-                    {item.tipo === 'grupo_parcelas' && isExpanded && (
-                      <div className="border-t border-gray-200 bg-gray-50">
-                        <div className="p-4">
-                          <h4 className="text-sm font-medium text-gray-700 mb-3">Parcelas:</h4>
-                          <div className="space-y-2">
-                            {item.parcelas.map((parcela: any) => (
-                              <div key={parcela.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 group">
-                                <div className="flex items-center space-x-3">
-                                  <span className="text-sm font-medium text-gray-600">
-                                    {parcela.parcela_atual}/{parcela.total_parcelas}
-                                  </span>
-                                  <span className="text-sm text-gray-600">
-                                    {formatDate(parcela.data)}
-                                  </span>
-                                  <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(parcela.status)}`}>
-                                    {getStatusIcon(parcela.status)}
-                                    <span>{parcela.status}</span>
-                                  </span>
-                                </div>
-                                <div className="flex items-center space-x-3">
-                                  <span className="font-medium text-red-600">
-                                    {formatCurrency(parcela.valor)}
-                                  </span>
-                                  <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    {parcela.status !== 'CONFIRMADO' && (
-                                      <button 
-                                        onClick={() => handleStatusChange(parcela.id, 'CONFIRMADO')}
-                                        className="p-1 text-gray-400 hover:text-green-600 transition-colors"
-                                        title="Confirmar"
-                                      >
-                                        <CheckCircle className="w-4 h-4" />
-                                      </button>
-                                    )}
-                                    {parcela.status !== 'PENDENTE' && (
-                                      <button 
-                                        onClick={() => handleStatusChange(parcela.id, 'PENDENTE')}
-                                        className="p-1 text-gray-400 hover:text-yellow-600 transition-colors"
-                                        title="Marcar como Pendente"
-                                      >
-                                        <Clock className="w-4 h-4" />
-                                      </button>
-                                    )}
-                                    <button 
-                                      onClick={() => handleEdit(parcela)}
-                                      className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                                      title="Editar"
-                                    >
-                                      <Edit3 className="w-4 h-4" />
-                                    </button>
-                                    <button 
-                                      onClick={() => handleDelete(parcela.id)}
-                                      className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                                      title="Excluir"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                </div>
+                    {expandedParcelas.has(lancamento.id) && (
+                      <div className="ml-8 mt-2 flex flex-col gap-1">
+                        {lancamento.parcelas?.map((parcela: any) => (
+                          <div key={parcela.id} className="group flex items-center justify-between bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 px-4 py-2 transition-all duration-200 hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-500 dark:text-gray-400">{parcela.parcela_atual}/{parcela.total_parcelas}</span>
+                              <span className="font-medium text-gray-900 dark:text-white">{formatDate(parcela.data)}</span>
+                              {/* Removido o texto do título da parcela */}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={clsx('font-bold text-sm', parcela.status === 'CONFIRMADO' ? 'text-green-600' : parcela.status === 'PENDENTE' ? 'text-yellow-600' : 'text-red-600')}>
+                                {formatCurrency(parcela.valor)}
+                              </span>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ml-2"
+                                style={{ background: parcela.status === 'CONFIRMADO' ? '#dcfce7' : parcela.status === 'PENDENTE' ? '#fef9c3' : '#fee2e2', color: parcela.status === 'CONFIRMADO' ? '#15803d' : parcela.status === 'PENDENTE' ? '#b45309' : '#b91c1c' }}>
+                                {getStatusIcon(parcela.status)} {parcela.status}
+                              </span>
+                              {/* Controles de item para parcela, só aparecem no hover */}
+                              <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Tooltip text={parcela.status === 'CONFIRMADO' ? 'Marcar como Pendente' : 'Marcar como Confirmado'} position="top">
+                                  <button
+                                    onClick={async () => {
+                                      await handleStatusChange(parcela.id, parcela.status === 'CONFIRMADO' ? 'PENDENTE' : 'CONFIRMADO');
+                                    }}
+                                    className="p-2 text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition-all duration-200"
+                                    aria-label="Alterar status"
+                                  >
+                                    <Clock className="w-4 h-4" />
+                                  </button>
+                                </Tooltip>
+                                <Tooltip text="Cancelar parcela" position="top">
+                                  <button
+                                    onClick={async () => {
+                                      await handleStatusChange(parcela.id, 'CANCELADO');
+                                    }}
+                                    className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                                    aria-label="Cancelar parcela"
+                                  >
+                                    <XCircle className="w-4 h-4" />
+                                  </button>
+                                </Tooltip>
+                                <Tooltip text="Editar parcela" position="top">
+                                  <button
+                                    onClick={() => handleEdit(parcela)}
+                                    className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                                    aria-label="Editar parcela"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                </Tooltip>
+                                <Tooltip text="Excluir parcela" position="top">
+                                  <button
+                                    onClick={() => setConfirmDeleteId(parcela.id)}
+                                    className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                                    aria-label="Excluir parcela"
+                                    disabled={deletingId === parcela.id}
+                                  >
+                                    <Trash className="w-4 h-4" />
+                                  </button>
+                                </Tooltip>
                               </div>
-                            ))}
+                            </div>
                           </div>
-                        </div>
+                        ))}
                       </div>
                     )}
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center text-gray-500 py-12">
-              <DollarSign className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <p className="text-lg font-medium">
-                {hasActiveFilters ? 'Nenhum lançamento encontrado com os filtros aplicados' : 'Nenhum lançamento encontrado'}
-              </p>
-              <p className="text-sm mt-1">
-                {hasActiveFilters ? 'Tente ajustar os filtros ou limpar a busca' : 'Comece adicionando suas primeiras transações!'}
-              </p>
+                ) : (
+                  <div
+                    key={lancamento.id}
+                    className={clsx(
+                      'group flex flex-col md:flex-row md:items-center justify-between bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm px-3 py-2 md:px-4 md:py-3 transition-all duration-200 hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700',
+                      highlightedId === lancamento.id && 'ring-2 ring-blue-400/40'
+                    )}
+                  >
+                    <div className="flex-1 min-w-0 flex flex-col gap-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-0.5">
+                        <span className="font-semibold text-gray-900 dark:text-white truncate text-base md:text-lg">{lancamento.descricao || 'Sem descrição'}</span>
+                        {/* Status + Badge */}
+                        {['CONFIRMADO', 'PENDENTE', 'CANCELADO'].includes(lancamento.status) && (
+                          <>
+                            <span className={clsx(
+                              'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
+                              lancamento.status === 'CONFIRMADO' ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
+                              lancamento.status === 'PENDENTE' ? 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
+                              'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300')
+                            }>
+                              {lancamento.status === 'CONFIRMADO' && <CheckCircle className="w-4 h-4" />}
+                              {lancamento.status === 'PENDENTE' && <Clock className="w-4 h-4" />}
+                              {lancamento.status === 'CANCELADO' && <XCircle className="w-4 h-4" />}
+                              {lancamento.status}
+                            </span>
+                            <span className={clsx(
+                              'ml-2 px-2 py-0.5 rounded-full text-xs font-semibold',
+                              lancamento.forma_pagamento === 'CREDITO'
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                                : lancamento.forma_pagamento === 'PIX'
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+                            )}>
+                              {lancamento.forma_pagamento === 'CREDITO' ? 'CRÉDITO' : lancamento.forma_pagamento === 'PIX' ? 'PIX' : 'DÉBITO'}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm text-gray-500 dark:text-gray-400">
+                        <Calendar className="w-4 h-4 mr-1 inline" />
+                        {formatDate(lancamento.data)}
+                        <span className="mx-1">•</span>
+                        {lancamento.categoria?.nome || 'Sem categoria'}
+                        <span className="mx-1">•</span>
+                        {lancamento.conta?.nome || 'Sem conta'}
+                        {lancamento.isParcelado && lancamento.total_parcelas > 1 && (
+                          <>
+                            <span className="mx-1">•</span>
+                            <span className="text-xs text-blue-600 dark:text-blue-300">Parcelado em {lancamento.total_parcelas} vezes</span>
+                          </>
+                        )}
+                        {lancamento.cartao_credito_usado && (
+                          <><span className="mx-1">•</span><span>Cartão: {lancamento.cartao_credito_usado}</span></> )}
+                      </div>
+                    </div>
+                    <div className="flex flex-row justify-between items-center mt-2 md:mt-0 gap-2 md:gap-4">
+                      <span className={clsx(
+                        'font-bold text-lg whitespace-nowrap',
+                        lancamento.tipo_transacao === 'DESPESA' ? 'text-red-600' : 'text-green-600'
+                      )}>
+                        {lancamento.tipo_transacao === 'DESPESA' ? '- ' : '+ '}{formatCurrency(lancamento.valor)}
+                      </span>
+                      {/* Controles */}
+                    <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Tooltip text={lancamento.status === 'CONFIRMADO' ? 'Marcar como Pendente' : 'Marcar como Confirmado'} position="top">
+                        <button
+                          onClick={async () => {
+                            await handleStatusChange(lancamento.id, lancamento.status === 'CONFIRMADO' ? 'PENDENTE' : 'CONFIRMADO');
+                          }}
+                          className="p-2 text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition-all duration-200"
+                          aria-label="Alterar status"
+                        >
+                          <Clock className="w-4 h-4" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip text="Cancelar lançamento" position="top">
+                        <button
+                          onClick={async () => {
+                            await handleStatusChange(lancamento.id, 'CANCELADO');
+                          }}
+                          className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                          aria-label="Cancelar lançamento"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip text="Editar lançamento" position="top">
+                        <button
+                          onClick={() => handleEdit(lancamento)}
+                          className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                          aria-label="Editar lançamento"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip text="Excluir lançamento" position="top">
+                        <button
+                          onClick={() => setConfirmDeleteId(lancamento.id)}
+                          className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                          aria-label="Excluir lançamento"
+                          disabled={deletingId === lancamento.id}
+                        >
+                          <Trash className="w-4 h-4" />
+                        </button>
+                      </Tooltip>
+                    </div>
+                  </div>
+                </div>
+                )
+              ))}
             </div>
           )}
         </div>
       </div>
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-2 mt-6">
+          <button
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="px-3 py-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 disabled:opacity-50"
+          >Anterior</button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+            <button
+              key={page}
+              onClick={() => setCurrentPage(page)}
+              className={`px-3 py-1 rounded ${page === currentPage ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200'}`}
+            >{page}</button>
+          ))}
+          <button
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="px-3 py-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 disabled:opacity-50"
+          >Próxima</button>
+        </div>
+      )}
+      {/* Modal de confirmação de exclusão */}
+      <ConfirmModal
+        open={!!confirmDeleteId}
+        title="Excluir lançamento"
+        message="Tem certeza que deseja excluir este lançamento? Esta ação não pode ser desfeita."
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        onConfirm={() => confirmDeleteId && handleDelete(confirmDeleteId)}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 }

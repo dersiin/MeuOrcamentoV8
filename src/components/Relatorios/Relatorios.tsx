@@ -19,6 +19,7 @@ import {
   Cell,
   Treemap
 } from 'recharts';
+import { PageTemplate } from '../Common/PageTemplate';
 
 export function Relatorios() {
   const [lancamentos, setLancamentos] = useState<any[]>([]);
@@ -153,8 +154,8 @@ export function Relatorios() {
   }, [lancamentos]);
 
   const renderFluxoCaixa = () => (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Fluxo de Caixa</h3>
+    <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-100 dark:border-gray-700 rounded-xl shadow-sm p-6">
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Fluxo de Caixa</h3>
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={dadosFluxoCaixa}>
@@ -194,8 +195,8 @@ export function Relatorios() {
   );
 
   const renderComparativoMensal = () => (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Comparativo Mensal</h3>
+    <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-100 dark:border-gray-700 rounded-xl shadow-sm p-6">
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Comparativo Mensal</h3>
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={dadosComparativoMensal}>
@@ -215,8 +216,8 @@ export function Relatorios() {
   );
 
   const renderOndeVaiDinheiro = () => (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Onde meu dinheiro foi?</h3>
+    <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-100 dark:border-gray-700 rounded-xl shadow-sm p-6">
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Onde meu dinheiro foi?</h3>
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <Treemap
@@ -283,51 +284,44 @@ export function Relatorios() {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Relatórios</h1>
-          <p className="text-gray-600 mt-2">Análises detalhadas das suas finanças</p>
-        </div>
-        
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={exportarRelatorio}
-            className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            <span>Exportar</span>
-          </button>
-        </div>
-      </div>
-
+    <PageTemplate
+      title="Relatórios"
+      subtitle="Análises detalhadas das suas finanças"
+      headerActions={
+        <button
+          onClick={exportarRelatorio}
+          className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+        >
+          <Download className="w-4 h-4" />
+          <span>Exportar</span>
+        </button>
+      }
+    >
       {/* Filtros */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+      <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-100 dark:border-gray-700 rounded-xl shadow-sm p-6">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Tipo de Relatório
             </label>
             <select
               value={tipoRelatorio}
               onChange={(e) => setTipoRelatorio(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white bg-white dark:bg-gray-900"
             >
               <option value="fluxo-caixa">Fluxo de Caixa</option>
               <option value="comparativo-mensal">Comparativo Mensal</option>
               <option value="onde-vai-dinheiro">Onde meu dinheiro foi?</option>
             </select>
           </div>
-          
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Período
             </label>
             <select
               value={periodo}
               onChange={(e) => setPeriodo(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white bg-white dark:bg-gray-900"
             >
               <option value="3meses">Últimos 3 meses</option>
               <option value="6meses">Últimos 6 meses</option>
@@ -336,41 +330,35 @@ export function Relatorios() {
           </div>
         </div>
       </div>
-
       {/* Relatórios */}
       <div className="space-y-8">
         {tipoRelatorio === 'fluxo-caixa' && renderFluxoCaixa()}
         {tipoRelatorio === 'comparativo-mensal' && renderComparativoMensal()}
         {tipoRelatorio === 'onde-vai-dinheiro' && renderOndeVaiDinheiro()}
       </div>
-
       {/* Resumo Estatístico */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+      <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-100 dark:border-gray-700 rounded-xl shadow-sm p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Resumo do Período</h3>
-        
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="text-center p-4 bg-green-50 rounded-lg">
+          <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
             <div className="text-2xl font-bold text-green-600">
               {formatCurrency(dadosFluxoCaixa.reduce((sum, item) => sum + item.receitas, 0))}
             </div>
             <div className="text-sm text-gray-600">Total Receitas</div>
           </div>
-          
-          <div className="text-center p-4 bg-red-50 rounded-lg">
+          <div className="text-center p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
             <div className="text-2xl font-bold text-red-600">
               {formatCurrency(dadosFluxoCaixa.reduce((sum, item) => sum + item.despesas, 0))}
             </div>
             <div className="text-sm text-gray-600">Total Despesas</div>
           </div>
-          
-          <div className="text-center p-4 bg-blue-50 rounded-lg">
+          <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
             <div className="text-2xl font-bold text-blue-600">
               {formatCurrency(dadosFluxoCaixa.reduce((sum, item) => sum + item.saldo, 0))}
             </div>
             <div className="text-sm text-gray-600">Saldo Líquido</div>
           </div>
-          
-          <div className="text-center p-4 bg-purple-50 rounded-lg">
+          <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
             <div className="text-2xl font-bold text-purple-600">
               {formatCurrency(dadosFluxoCaixa.reduce((sum, item) => sum + item.receitas, 0) / dadosFluxoCaixa.length)}
             </div>
@@ -378,6 +366,6 @@ export function Relatorios() {
           </div>
         </div>
       </div>
-    </div>
+    </PageTemplate>
   );
 }

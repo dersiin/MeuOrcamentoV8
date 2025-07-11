@@ -3,6 +3,7 @@ import { BarChart3, Download, Filter, TrendingUp, TrendingDown } from 'lucide-re
 import { DatabaseService } from '../../lib/database';
 import { AuthService } from '../../lib/auth';
 import { formatCurrency } from '../../lib/utils';
+import { PageTemplate } from '../Common/PageTemplate';
 
 interface SankeyNode {
   id: string;
@@ -231,7 +232,7 @@ export function RelatoriosSankey() {
     const maxValue = Math.max(...sankeyData.nodes.map(n => n.value));
     
     return (
-      <div className="h-96 p-6 bg-gray-50 rounded-lg">
+      <div className="bg-gray-50 dark:bg-gray-900 rounded-lg h-96 p-6">
         <div className="grid grid-cols-3 gap-8 h-full">
           {/* Coluna de Origem (Receitas) */}
           <div className="space-y-4">
@@ -342,34 +343,21 @@ export function RelatoriosSankey() {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Fluxo de Caixa Sankey</h1>
-          <p className="text-gray-600 mt-2">Visualize o fluxo do seu dinheiro de forma intuitiva</p>
-        </div>
-        
-        <button
-          onClick={exportarDados}
-          className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          <span>Exportar</span>
-        </button>
-      </div>
-
+    <PageTemplate
+      title="Fluxo de Caixa Sankey"
+      subtitle="Visualize o fluxo de receitas e despesas entre contas e categorias"
+    >
       {/* Filtros */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Período
             </label>
             <select
               value={periodo}
               onChange={(e) => setPeriodo(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white bg-white dark:bg-gray-900"
             >
               <option value="month">Este mês</option>
               <option value="quarter">Últimos 3 meses</option>
@@ -378,13 +366,13 @@ export function RelatoriosSankey() {
           </div>
           
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Tipo de Fluxo
             </label>
             <select
               value={tipoFluxo}
               onChange={(e) => setTipoFluxo(e.target.value as any)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white bg-white dark:bg-gray-900"
             >
               <option value="completo">Fluxo Completo</option>
               <option value="receitas">Apenas Receitas</option>
@@ -395,8 +383,8 @@ export function RelatoriosSankey() {
       </div>
 
       {/* Diagrama Sankey */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-6">Diagrama de Fluxo</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Diagrama de Fluxo</h2>
         {renderSankeyDiagram()}
       </div>
 
@@ -462,6 +450,6 @@ export function RelatoriosSankey() {
           </div>
         </div>
       </div>
-    </div>
+    </PageTemplate>
   );
 }
